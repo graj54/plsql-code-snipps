@@ -1,0 +1,21 @@
+              
+
+21 rows selected.
+
+SQL> select * from v$instance;
+
+INSTANCE_NUMBER INSTANCE_NAME                                                   
+--------------- ----------------                                                
+HOST_NAME                                                                       
+----------------------------------------------------------------                
+VERSION           STARTUP_T STATUS       PAR    THREAD# ARCHIVE LOG_SWITCH_WAIT 
+----------------- --------- ------------ --- ---------- ------- --------------- 
+LOGINS     SHU DATABASE_STATUS   INSTANCE_ROLE      ACTIVE_ST BLO EDITION       
+---------- --- ----------------- ------------------ --------- --- -------       
+              1 xe                                                              
+GURUSAI                                                                         
+10.2.0.1.0        15-MAR-16 OPEN         NO           1 STOPPED                 
+ALLOWED    NO  ACTIVE            PRIMARY_INSTANCE   NORMAL    NO  XE            
+                                                                                
+
+SQL> spool off

@@ -1,0 +1,1061 @@
+
+what is the difference between using is and as in creating 
+objects?
+#######DOUBTS
+17, 22, mutating table (41),dependencies,  
+
+########TO GET THE INFO OF EXISTING OBJECCTS
+ select text from user_source where type='PROCEDURE';
+ select text from user_source where name='P1';
+##################COMMITING IN TRIGGER EXAMPLE
+
+create or replace TRIGGER t1
+after insert or delete 
+on employees
+
+for each row
+Declare
+
+pragma autonomous_transaction;
+Begin
+
+if inserting then 
+insert into trigh values(:new.first_name,   'Inserted.');
+--dbms_output.put_line('Trigger Fired');
+elsif deleting then 
+insert into trigh values (:old.first_name , 'deleted');
+end if;
+
+
+end;
+
+/
+
+##################EXCEPTION EXAMPLE
+
+
+declare
+a number;
+
+Begin 
+select salary into a from employees
+where employee_id in (100, 101);
+
+dbms_output.put_line(a);
+exception
+
+when too_many_rows then
+dbms_output.put_line('Too many rows'||sqlcode ||''||sqlerrm);
+
+when no_data_found then
+dbms_output.put_line('no data found'||sqlcode ||''||sqlerrm);
+
+when others then
+dbms_output.put_line('some other error');
+
+end;
+/
+
+#################
+
+function reset_comm (p_comm in number)
+	return number
+	as
+	Begin
+	
+	select max(commission_pct) into v_max_comm 
+	from empbackup ;
+	select commission_pct into g_comm 
+	from empbackup where employee_id = p_comm;
+	
+	update empbackup set commission_pct=
+	decode(g_comm, null, v_max_comm )
+	where employee_id= p_comm;
+		
+	return v_max_comm;
+	end reset_comm;
+------------------	
+	
+
+create or replace package comm_package 
+as
+g_comm number :=.10 ;
+v_max_comm number;
+procedure reset_comm (p_comm in number, pout out number);
+
+end comm_package;
+/
+create or replace package body comm_package
+as 
+		
+	function validate_comm (p_comm in number)
+	return boolean
+	as 
+	--v_max_comm number;
+	Begin
+	select Max(commission_pct) into v_max_comm
+	from empbackup
+	where employee_id= p_comm;
+	
+	if g_comm > v_max_comm then
+	g_comm := v_max_comm;
+	return false;
+	else return true;
+	end if;
+	end validate_comm;
+	
+	procedure reset_comm (p_comm in number, pout out number)
+	as 
+	begin 
+	
+	if validate_comm(p_comm)
+	then update empbackup set commission_pct=decode(commission_pct,null, g_comm ) where employee_id= p_comm; 
+	pout:= '2000';
+	else pout :='1000';
+	end if;
+	end reset_comm;
+	
+end comm_package;
+/
+
+#################calling one procedure in others
+
+create or replace procedure p2(v_id in number, v_name in varchar2)
+as
+begin 
+
+p1(v_id,v_name);
+
+delete from a1 where ano=v_id;
+
+end p2;
+
+/
+
+##########cursor attribute row count behaviour and package example
+
+create or replace package c_p is
+cursor c1 is select employee_id from employees order by employee_id desc;
+procedure proc1;
+procedure proc2;
+end c_p;
+/
+
+create or replace package body c_p is
+v_num number;
+
+Procedure proc1 is 
+begin
+open c1;
+loop fetch c1 into v_num;
+dbms_output.put_line('Row is '||c1%Rowcount) ;
+exit when c1%rowcount=3;
+end loop;
+close c1;
+end proc1;
+
+procedure proc2 is 
+begin 
+open c1;
+loop fetch c1 into v_num;
+dbms_output.put_line('Row is '||c1%Rowcount) ;
+exit when c1%rowcount =6;
+end loop;
+close c1;
+end proc2;
+
+end c_p;
+
+/
+
+####################to see any text of the procedures, functions, etc.
+
+USER_SOURCE table
+
+text, name - columns in the table
+
+############system events for triggers
+
+after servererror
+after logon
+before logoff
+after startup
+before shutdown
+
+--after logon
+create or replace trigger trig_1
+after logon on schema/* here it can be either SCHEMA or DATABASE*/
+begin
+d.m.l.
+end;
+/
+
+################function example
+
+create or replace function gen_mail_id(f_id number, f_name varchar2)
+return varchar2
+as
+f_mail_id varchar2(30);
+begin
+f_mail_id:= f_id||'_'||substr(f_name,1,5)||'@sai.com';
+
+return f_mail_id;
+end;
+/
+
+
+ exec :mailid := gen_mail_id(100,'Gururaj');
+ 
+## using the abovve function in a proceddure with CURSOR example..##
+
+create or replace procedure p_m
+as 
+cursor c1 is select employee_id, first_name from employees;
+v_id number(4);
+v_name varchar2(20);
+mailid varchar2(20);
+begin
+
+open c1;
+loop
+fetch c1 into v_id,v_name;
+dbms_output.put_line(v_id||v_name);
+
+mailid:= gen_mail_id(v_id, v_name);
+
+dbms_output.put_line(mailid);
+exit when c1%rowcount =5;
+
+end loop;
+close c1;
+
+end ;
+
+/
+ 
+#####mutating error in TRIGGER
+
+create or replace trigger trig
+after delete on a1
+--for each row /* this is to be avoided to delete from table. 
+--after the trigger gets created.
+--else we wil get mutating error.*/
+declare
+n integer;
+begin
+select count(*) into n from a1 ;
+dbms_output.put_line('no. of rows in a1 are '||n ) ;
+end;
+/
+
+###########DEFAULT VALUES IN THE PARAMETER OF THE PROCEDURES
+create or replace procedure add_a1
+(ano number default 100, aname OUT varchar2 default 'guruSai')
+/*PLS-00230: OUT and IN OUT formal parameters may not have default
+expressions*/ 
+as
+Begin
+
+insert into a1 values(ano, aname);
+end add_a1;
+/
+
+##############TRIGGGERS WITH COLUMNS IN THE HEADER
+
+create or replace trigger trig before update of ano, aname on a1
+for each row
+declare
+n integer;
+begin
+insert into trig values(:new.ano ,:old.aname) ;
+
+end;
+
+/
+
+###############
+sql statements fails if the function contains DML operation  is present in the query..
+
+
+##############Trigger another example. to raise applicaiton error.
+
+create or replace trigger trig
+before insert or update on a1
+--for each row
+--when (new.aname <> 'Guru')
+
+declare
+ano_x number;
+ano_n number;
+begin
+select min(ano), max(ano) into ano_n, ano_x
+from a1;
+--where aname= :new.aname;
+
+if :new.ano<ano_n or :new.ano>ano_x
+then RAISE_APPLICATION_ERROR(-20222,'out of range');
+end if;
+
+end;
+/
+
+###########Dynamic SQL
+
+during the execution phase of the dynamic sql for DML
+the sql statement run and the number of rows processed is returned.
+
+ORA-14552: cannot perform a DDL, commit or rollback inside a query or DML
+ORA-06512: at "HR.FUNC1", line 7
+
+############minimize dependency failure
+by querying with select *
+delcaring anchored declarations
+
+#########
+If a query contains package.function then..
+The Package function cannot execute DML on a table being queried .
+
+#######
+INSTEAD of trigger is used to modify data in which the DML statement has been issued against an inherently non updatable view.
+
+######
+instead of  clause in a trgger identify view or event associated with triger
+
+########
+
+side effect: changes to DB tables or packaged variables defined in package specification.
+
+#####scope of variables##############
+
+<<outer>>
+Declare 
+a number:=100;
+Begin
+
+declare
+a number :=200;
+
+begin
+
+dbms_output.put_line(outer.a);
+dbms_output.put_line(a);
+end;
+
+dbms_output.put_line(a);
+end;
+/
+
+##########bind variables########3
+variable a number;
+variable b varchar2(20);
+
+declare
+
+c date;
+
+begin
+
+select salary , first_name, hire_date 
+into :a, :b, c
+from employees
+where employee_id =101;
+
+dbms_output.put_line(:a||:b||c);
+
+end;
+/
+
+##########referal data types############3
+declare
+
+a employees.salary%type;
+b employees.first_name%type;
+c employees.hire_date%type;
+
+begin
+
+select salary, first_name, hire_date 
+into a, b, c
+from employees 
+where employee_id=103;
+
+dbms_output.put_line(a||' '||b||' '||c);
+
+end;
+/
+
+##############control structured language###########
+declare 
+
+a number:=100;
+b varchar2(6):='Besant';
+
+begin
+
+if a=200 then
+
+dbms_output.put_line('a=200');
+
+elsif (a=100 and b='Besant')then
+--elsif a in(100,101) then
+--elsif a between 100 and 102 then -- this takes even the boundary values
+
+dbms_output.put_line('a=100');
+
+else
+
+dbms_output.put_line('a!=100');
+
+end if;
+
+end;
+/
+############basic loop############
+declare 
+
+a number:=10;
+
+begin
+
+loop
+
+a:=a+2;
+dbms_output.put_line(a);
+
+exit when a=20;
+
+end loop;
+
+end;
+
+/
+###############while loop#########
+declare 
+a number:=10;
+
+begin
+
+while a<=20 loop
+
+a:=a+3;
+dbms_output.put_line(a);
+
+end loop;
+
+end;
+/
+####### for loop ######33
+begin
+
+for i in 1..10 loop
+
+i:=i+2;
+dbms_output.put_line(i);
+
+end loop;
+
+end;
+
+/
+#########goto statements##############3
+begin 
+
+for i in 1..10 loop
+
+dbms_output.put_line(i);
+
+if i=3 then
+
+goto inner;
+
+end if;
+
+end loop;
+
+<<inner>>
+
+begin 
+
+insert into a values( 100);
+commit;
+
+end;
+
+end;
+/
+############cursor....####################
+declare
+a number;
+cursor c1 is select salary from employees;
+
+begin
+
+open c1; loop
+fetch c1 into a;
+dbms_output.put_line(a);
+
+exit when c1%rowcount=5;
+
+end loop;
+close c1;
+end;
+
+/
+###########cursor ....############
+declare 
+a number;
+cursor c1 is select salary from employees;
+
+begin
+
+if c1%isopen then
+close c1;
+end if;
+
+open c1;
+loop
+fetch c1 into a;
+dbms_output.put_line(a);
+exit when c1%rowcount=5;
+end loop;
+
+end;
+/
+########cursor ....########33
+declare 
+a employees%rowtype;
+cursor c1 is select * from employees;
+begin 
+
+open c1;
+loop
+fetch c1 into a;
+dbms_output.put_line(a.salary||' '||a.first_name);
+exit when c1%rowcount=6;
+end loop;
+
+end;
+/
+##############procedure......########333
+create or replace procedure p1
+as
+ano number;
+begin
+select salary into ano	 from employees where employee_id=101;
+dbms_output.put_line(ano);
+
+end;
+/
+###########procedure....##########
+create or replace procedure p1(pin in number, pout out varchar2)
+as 
+Begin
+select first_name into pout from employees where employee_id=pin;
+
+end;
+/
+########procedure######
+create or replace procedure p1 (pio in out number)
+as 
+begin
+pio := '91'||pio;
+end;
+/
+
+variable a number;
+begin
+:a :=232323234;
+end;
+/
+
+exec p1(:a);
+
+print a;
+#############functions ###########3
+create or replace function f1 (fin in number , fout out number)
+return number as
+begin
+select salary 
+into fout from employees where employee_id=fin;
+return fout;
+end;
+/
+
+variable a number;
+
+exec :a := f1(103, :a);
+
+##########functions
+create or replace function f1 (fin in number )
+return number as
+a number;
+begin
+select salary 
+into a from employees where employee_id=fin;
+return a;
+end;
+/
+
+##########function dml.,..#############
+create or replace function f1 ( fin in number , fin1 in number)
+return number as
+Begin
+insert into at1 values( fin , fin1);
+commit;
+return null;
+end ;
+/
+
+create or replace function f2 ( fin in number, fin1 in number)
+return number as
+begin
+return f1( fin, fin1);
+end;
+/
+
+############function....#########3
+create or replace function f1 ( fin in varchar2)
+return date as
+date1 date;
+begin 
+select  to_date(fin,'DD-MM-YYYY') into date1 from dual;
+return date1;
+end;
+/
+###########trigger statement level############
+create or replace trigger t1 
+after insert or update 
+on at1
+
+begin
+
+dbms_output.put_line('t1 fired');
+end;
+/
+##########trigger row level###############
+create or replace trigger t1
+after insert or update 
+on at1
+for each row
+begin 
+
+dbms_output.put_line('t1 fired');
+
+end;
+
+/
+##############trigger usage of :new, :old################
+create or replace trigger t1
+after insert or delete or update
+on at1
+for each row
+
+begin
+
+if inserting then
+insert into t2 values( :new.col1, :new.col2);
+
+elsif deleting then
+insert into t2 values( :old.col1, :old.col2);
+
+elsif updating then
+insert into t2 values( :old.col1, :old.col2);
+
+end if;
+
+end;
+
+/
+/*###########
+#four data types in plsql - scalar, composite, reference, LOB
+#scalar - single value
+#composite - records
+#bind variable are used in sqlplus to pas runtime..
+51
+
+*/
+
+create or replace function func1 
+return number
+as
+var12 number(6);
+begin
+update empbackup set salary=salary+100 where rownum<2;
+commit;
+select salary into var12 from empbackup    where rownum<2;
+return var12;
+
+end;
+/
+
+/* use of collection and assigning values */
+declare
+type sum1 is table of number(10) index by pls_integer;
+type dep1 is table of number(10) index by pls_integer;
+cursor c1 is select sum(salary),department_id  from employees group by department_id;
+sum12 sum1 ;
+sum13 sum1 ;
+dep12 dep1 ;
+
+cur_val c1%rowtype;
+sum_sal number(10):=0;
+sum_sal_1 number(10):=0;
+dep_id varchar2(10);
+
+begin
+--dbms_output.put_line('proc start');
+open c1;
+
+--dbms_output.put_line('inside for loop');
+fetch c1 bulk collect into sum12,dep12;
+
+for i in 1..sum12.count loop
+
+dbms_output.put_line(i);
+if dep12(i)=70 then
+sum13(i):=1.7*sum12(i);
+elsif dep12(i)=40 then
+sum13(i):=1.4*sum12(i);
+else
+sum13(i):=sum12(i);
+end if;
+
+dbms_output.put_line(sum13(i)||' '||dep12(i));
+sum_sal:=sum_sal+ sum13(i);
+
+sum_sal_1:=sum_sal_1+sum12(i);
+
+end loop;
+
+dbms_output.put_line('New sum :'||sum_sal||'old sum :'||sum_sal_1);
+
+dbms_output.put_line(sum_sal-sum_sal_1);
+
+close c1;
+end;
+/
+
+/* use of associative array collection **********/
+declare 
+
+type population is table of number index by varchar2(44);
+c_pop population;
+i varchar2(44);
+
+begin
+
+c_pop('a') := 190;
+c_pop('b') :=2312;
+c_pop('c') :=438249;
+
+i:= c_pop.first;
+
+while i is not null
+loop
+dbms_output.put_line('Population of '||i||' is '||c_pop(i));
+i:= c_pop.next(i);
+end loop;
+end;
+/
+
+/* ********************using bind variables**********/
+declare
+
+emp_name varchar2(20);
+basic_sal number(10,2);
+net_sal number(10,2);
+
+begin
+emp_name:='&empname';
+basic_sal:=&sal;
+
+
+dbms_output.put_line('Employee name:'||emp_name);
+dbms_output.put_line('Basic sal:'||basic_sal);
+
+if basic_sal<3000 then
+net_sal:=(0.31+0.15+1-.05)*basic_sal;
+elsif basic_sal between 3000 and 5000 then
+net_sal:=(0.31+0.15+1-.07)*basic_sal;
+elsif basic_sal between 5000 and 8000 then
+net_sal:=(0.31+0.15+1-.08)*basic_sal;
+end if;
+
+dbms_output.put_line(net_sal);
+
+end;
+
+/
+
+/* when an exception is raised the control is transferred to the enclosing block.if you want to execute the statements in spite of the exceptions they raise enclose each of them in a single anonymous .
+
+EXCEPTION_INIT is a compile-time command or pragma used to associate a name with an internal error code. EXCEPTION_INIT instructs the compiler to associate an identifier, declared as an EXCEPTION, with a specific error number. Once you have made that association, you can then raise that exception by name and write an explicit WHEN handler that traps the error.
+With EXCEPTION_INIT, I can replace the WHEN clause shown in the previous example with something like this: */
+PROCEDURE my_procedure
+IS
+   invalid_month EXCEPTION;
+   PRAGMA EXCEPTION_INIT (invalid_month, −1843);
+BEGIN
+   ...
+EXCEPTION
+   WHEN invalid_month THEN
+
+   end;
+   
+   
+#############
+/*INSTEAD OF TRIGGERS */
+   
+create or replace view emp_dept_loc
+as 
+select ename, empno, e.deptno, sal, loc from emp e, dept d
+where e.deptno=d.deptno;
+
+CREATE or REPLACE emp_dept_loc_trig
+instead of insert on emp_dept_loc
+declare
+v_deptno dept.deptno%type;
+
+cursor cur_get_dept_loc(cv_loc varchar2)
+is 
+select deptno from dept
+where loc=cv_loc;
+
+begin
+	open cur_get_dept_loc (upper(:new.loc));
+	
+	fetch cur_get_dept_loc
+	into v_deptno;
+	
+	if cur_get_dept_loc%notfound
+	then
+	insert into dept (deptno, dname, loc)
+	values (:new., 'D5', :new.loc);
+	end if;
+	close cur_get_dept_loc;
+	
+	insert into emp(empno,ename, deptno, sal)
+	values(:new.empno, :new.ename, :new.deptno, :new.sal);
+	
+end;
+/
+	
+##########
+--nested TABLE COLLECTIONS DENSE AND SPARSE CONCEPT
+
+declare
+type numList is table of integer;
+list1 numList := numList(11,22,33,12);
+begin
+--list1.delete(2);
+dbms_output.put_line('The last element # in list1 is '||list1.last||'
+and total of elements is '||list1.count);
+list1.extend(3,4);
+
+--dbms_output.put_line(list1(1));
+ 
+for i in 1..list1.count
+loop
+
+dbms_output.put_line(nvl(list1(i),0));
+end loop;  
+end;
+/
+-- NESTED LOOPS
+SQL> CREATE TYPE NUM_NEST_T AS TABLE OF NUMBER;
+  2  /
+SQL> CREATE TABLE TAB_USE_NT_COL
+  2  (ID NUMBER,
+  3  NUM NUM_NEST_T)
+  4  NESTED TABLE NUM STORE AS NESTED_NUM_ID;
+SQL> INSERT INTO TAB_USE_NT_COL VALUES(1, NUM_NEST_T(10,11,12));
+SQL> INSERT INTO TAB_USE_NT_COL VALUES(2, NUM_NEST_T(10,22,13));
+SQL> COMMIT;
+SQL> SELECT * FROM TAB_USE_NT_COL;
+        ID
+----------
+NUM
+-------------------------------------------------------------------------------
+         1
+NUM_NEST_T(10, 11, 12)
+
+         2
+NUM_NEST_T(10, 22, 13)
+SQL> UPDATE TAB_USE_NT_COL SET NUM = NUM_NEST_T( 11,33,14) WHERE ID=2;
+SQL> SELECT * FROM TAB_USE_NT_COL;
+        ID
+----------
+NUM
+-------------------------------------------------------------------------------
+         1
+NUM_NEST_T(10, 11, 12)
+         2
+NUM_NEST_T(11, 33, 14)
+SQL> SELECT T.ID, T1.COLUMN_VALUE FROM TAB_USE_NT_COL T, TABLE(T.NUM) T1;
+        ID COLUMN_VALUE
+---------- ------------
+         1           10
+         1           11
+         1           12
+         2           11
+         2           33
+         2           14
+----------------
+
+DECLARE
+/*Declare a local nested table collection*/
+TYPE coll_method_demo_t IS TABLE OF NUMBER;
+/*Declare collection type variables*/
+L_ARRAY1 coll_method_demo_t;
+L_ARRAY2 coll_method_demo_t := coll_method_demo_t (45,87,57);
+BEGIN
+/*Check if first cell exists in the array 1*/
+IF L_ARRAY1.EXISTS(1) THEN
+DBMS_OUTPUT.PUT_LINE('Element 1 found in Array 1');
+ELSE
+DBMS_OUTPUT.PUT_LINE('Element 1 NOT found in Array 1');
+END IF;
+/*Check if first cell exists in the array 2*/
+IF L_ARRAY2.EXISTS(1) THEN
+DBMS_OUTPUT.PUT_LINE('Element 1 found in Array 2');
+ELSE
+DBMS_OUTPUT.PUT_LINE('Element 1 NOT found in Array 2');
+END IF;
+END;
+/
+
+DECLARE
+/*Declare a local record and a table of record to capture the values*/
+TYPE REC_EMP IS RECORD
+(
+EMPID EMPLOYEES.EMPNO%TYPE,
+ENAME EMPLOYEES.ENAME%TYPE,
+DEPT EMPLOYEES.DEPTNO%TYPE,
+SALARY EMPLOYEES.SAL%TYPE
+);
+TYPE T_EMP IS TABLE OF REC_EMP;
+L_EMP T_EMP := T_EMP();
+TYPE REC_EMP_UPD IS RECORD
+(
+ENAME EMPLOYEES.ENAME%TYPE,
+SAL EMPLOYEES.SAL%TYPE
+);
+TYPE T_EMP_UPD IS TABLE OF REC_EMP_UPD;
+L_EMP_UPD T_EMP_UPD;
+BEGIN
+/*Fetch the employee details in a local collection*/
+SELECT empno, ename, deptno, sal
+BULK COLLECT INTO L_EMP
+FROM employees;
+/*Use FORALL to update the salary values. Note the use of RETURNING INTO*/
+FORALL I IN L_EMP.FIRST..L_EMP.LAST
+UPDATE employees
+SET sal = L_EMP(I).SALARY + 1000
+WHERE empno = L_EMP(I).EMPID
+RETURNING ENAME, SAL BULK COLLECT INTO L_EMP_UPD;
+/*Display the current data*/
+FOR I IN 1..L_EMP_UPD.COUNT
+LOOP
+DBMS_OUTPUT.PUT_LINE('New salary of '||L_EMP_UPD(I).ENAME||' is '||L_EMP_UPD(I).SAL);
+END LOOP;
+END;
+/
+declare 
+type emp_t is table of emp%rowtype;
+rec_emp emp_t;
+
+begin
+select *   bulk collect into rec_emp from emp;
+
+for i in rec_emp.first..rec_emp.last
+loop
+dbms_output.put_line(rec_emp(i).empno);
+end loop;
+
+end;
+/
+
+
+/* use cursor in cursor concept **************/
+DECLARE
+  CURSOR c_student IS
+    SELECT first_name, last_name, student_id
+      FROM student
+     WHERE last_name LIKE 'J%';
+  CURSOR c_course
+   (i_student_id IN student.student_id%TYPE)
+  IS
+    SELECT c.description, s.section_id sec_id
+      FROM course c, section s, enrollment e
+     WHERE e.student_id = i_student_id
+       AND c.course_no = s.course_no
+       AND s.section_id = e.section_id;
+  CURSOR c_grade(i_section_id IN section.section_id%TYPE,
+                 i_student_id IN student.student_id%TYPE)
+     IS
+     SELECT gt.description grd_desc,
+        TO_CHAR
+            (AVG(g.numeric_grade), '999.99') num_grd
+       FROM enrollment e,
+            grade g, grade_type gt
+      WHERE e.section_id = i_section_id
+        AND e.student_id = g.student_id
+        AND e.student_id = i_student_id
+        AND e.section_id = g.section_id
+        AND g.grade_type_code = gt.grade_type_code
+      GROUP BY gt.description ;
+BEGIN
+  FOR r_student IN c_student
+  LOOP
+   DBMS_OUTPUT.PUT_LINE(CHR(10));
+   DBMS_OUTPUT.PUT_LINE(r_student.first_name||
+      '  '||r_student.last_name);
+   FOR r_course IN c_course(r_student.student_id)
+   LOOP
+     DBMS_OUTPUT.PUT_LINE ('Grades for course :'||
+        r_course.description);
+     FOR r_grade IN c_grade(r_course.sec_id,
+                       r_student.student_id)
+     LOOP
+       DBMS_OUTPUT.PUT_LINE(r_grade.num_grd||
+         '  '||r_grade.grd_desc);
+     END LOOP;
+    END LOOP;
+   END LOOP;
+END;
+
+
+/*
+
+logging  in sqlplus
+C:\Users\User>cd C:\oraclexe\app\oracle\product\11.2.0\server\bin
+
+C:\oraclexe\app\oracle\product\11.2.0\server\bin>sqlplus /nolog
+
+SQL*Plus: Release 11.2.0.2.0 Production on Tue Sep 18 22:16:10 2018
+
+Copyright (c) 1982, 2014, Oracle.  All rights reserved.
+
+SQL> connect /as sysdba
+Connected.
+SQL> alter user sys identified by "admin"
+  2  ;
+
+User altered.
+
+SQL> alter user hr account unlock;
+
+User altered.
+
+*/
+
+
+
+
+
+
+
+
+
+
+
