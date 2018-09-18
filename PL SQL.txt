@@ -1,0 +1,790 @@
+- PL/SQL Program Data/Data Types
+  - Strings (CHAR - 32767 bytes {Only 2000 bytes in SQL}, NCHAR, VARCHAR2 - 32767 bytes {Only 4000 bytes in SQL}, NVARCHAR2)
+    - variable_name VARCHAR2 (max_length [CHAR | BYTE]);   (refer NLS_SESSION_PARAMETERS for default type CHAR or BYTE)
+    - Because of variable max lenghts between SQL & PL/SQL, need to excercise caution when moving data to SQL
+    - Since CHAR is a fixed length data type, PL/SQL uses spaces to right-pad in case of smaller data
+    - So many Sub Types (STRING, VARCHAR etc,.) for the purpose of providing compatibility with the ANSI SQL standard
+    - NLS_COMP=LINGUISTIC (Default is BINARY for ASCII value sort) and NLS_SORT=<some_value>_CI for Case Insensitive comparision
+    - Case Insensitivity affects index performance by not using them. Using function based indexes is one option to avoid this.
+    - Negative String Positioning in INSTR(source_text, search_text, postion, occurence), SUBSTR(source_text, position, length)
+    - Regular Expressions
+    - Empty CHAR is not null
+    - String Comparison: non-blank padding (when one of the argument is VARCHAR2), blank padding (when all are CHAR type)
+    - Alternate quote operator usage: q'<coustom-quote-literal><<string to display>><custor-quote-literal>'
+
+  - Numbers
+    - Before 10g only NUMBER type
+    - The PLS_INTEGER: stores signed integers in the range -2,147,483,648 through 2,147,483,647; Values are represented using your hardware platform’s native integer format (for native integer arithmetic); designed for speed.
+    - PLS_INTEGER for integer arithmetic (and for loop counters) in cases where you can avoid conversions back and forth to the NUMBER type
+    - BINARY_INTEGER: only use for compatibility purposes with Oracle 7.3
+    - SIMPLE_INTEGER (11g): does not support NULL values nor does it check for overflow conditions; better performance with native compilation (ALTER PROCEDURE simple_test COMPILE PLSQL_CODE_TYPE= NATIVE)
+    - BINARY_FLOAT (4 bytes, f suffix) and BINARY_DOUBLE (8 bytes, d suffix): not use binary types to represent monetary values (where decimal representation is critical); 0.95f <> 0.95d <> 0.95
+    - Special Literals supported by both PL/SQL and SQL: BINARY_FLOAT_NAN, BINARY_DOUBLE_NAN, BINARY_FLOAT_INFINITY and BINARY_DOUBLE_INFINITY
+    - Mixing the Floating-Point Types: Order of precedence from highest to lowest priority is BINARY_DOUBLE, BINARY_FLOAT, NUMBER
+    - Explicit conversion functions: TO_NUMBER, TO_BINARY_FLOAT, TO_BINARY_DOUBLE
+    - SIMPLE_FLOAT and SIMPLE_DOUBLE: performance-enhanced versions of BINARY_FLOAT and BINARY_DOUBLE
+    - CAST (expression AS datatype) for ISO SQL standard
+    - Implicit Conversions
+    - Numeric Functions
+
+  - Dates and Timestamps
+    - DATE
+      - Stores Year, Month, Day, Hour, Minute and Second
+      - 7 bytes
+    - TIMESTAMP [(precision)]
+      - Stores Year, Month, Day, Hour, Minute, Second and billionth of Second (i.e 9 digits, but default is 6 digits)
+    - TIMESTAMP [(precision)] WITH TIME ZONE
+      - Stores Year, Month, Day, Hour, Minute, Second, billionth of Second and Session Time Zone (in which data was entered)
+    - TIMESTAMP [(precision)] WITH LOCAL TIME ZONE
+      - Stores Year, Month, Day, Hour, Minute, Second, billionth of Second and Databse Time Zone (when retrived converted into sessions time zone)
+    - Getting Current Date and Time: CURRENT_DATE, CURRENT_TIMESTAMP (it is TIMESTAMP WITH TIME ZONE), LOCATTIMESTAMP, SYSDATE, SYSTIMESTAMP
+    - Interval Datatypes
+      - var_name INTERVAL YEAR [(year_precision)] TO MONTH
+      - var_name INTERVAL DAY [(day_precision)] TO SECOND [(frac_sec_prec)]
+    - Date Convesion Functions: TO_DATE, TO_TIMESTAMP, TO_TIMESTAMP_TZ
+    - Be aware that every datetime value composed of both date and time (TRUNC(SYSDATE) = TO_DATE('1-Jan-2009','dd-Mon-yyyy'))
+    - When requiring a format mask to match exactly. Ex: TO_DATE ('1-1-4', 'fxDD-MM-YYYY') will fail
+    - Converting from Numbers to Intervals: NUMTOYMINTERVAL (eX: NUMTOYMINTERVAL (10.5,'Year')), NUMTODSINTERVAL
+    - Converting String to Intervals: TO_YMINTERVAL('Y-M'), TO_DSINTERVAL('D HH:MI:SS.FF')
+    - Interval Literals: INTERVAL 'character_representation' start_element TO end_element
+    - EXTRACT (component_name, FROM {datetime | interval})
+    - Date Arithematic: SYSTIMESTAMP + INTERVAL '1500 4:30:2' DAY TO SECOND, 31May2008 + INTERVAL '1' MONTH (Not advisable for EOM values), ADD_MONTHS(current_date, -1), ADD_MONTHS(current_date, -1), SYSDATE + (4/24) (Adding 4 hours), SYSDATE + (1/24/60/60) (Adding a 1 second)
+      - The result of a subtraction involving two TIMESTAMPs is a value of type INTERVAL DAY TO SECOND. The result of a subtraction involving two DATEs is a numeric value. Consequently, if you want to subtract one DATE from another and return an INTERVAL DAY TO SECOND value, you will need to CAST your DATEs into TIMESTAMPs. If you mix DATEs and TIMESTAMPs in the same subtraction expression, PL/SQL will implicitly cast the DATEs into TIMESTAMPs.
+      - The one rule you need to keep in mind is that whenever you add or subtract two intervals, they must be of the same type.
+      - Multiplication and division have no application to dates, but you can multiply an interval by a number and divide an interval by a number
+      - Using Unconstrained INTERVAL Types (To not loose the precision): YMINTERVAL_UNCONSTRAINED, DSINTERVAL_UNCONSTRAINED
+
+  - Records
+    - There are three different ways to define a record: Table-based record %ROWTYPE, Programmer-defined record TYPE record_name IS RECORD (...), cursor-based record
+    - record_name [schema_name.]object_name%ROWTYPE [ DEFAULT|:= compatible_record ];
+    - TYPE type_name IS RECORD
+	(field_name1 datatype1 [[NOT NULL]:=|DEFAULT default_value],
+	 field_name2 datatype2 [[NOT NULL]:=|DEFAULT default_value],
+	 ...
+	 field_nameN datatypeN [[NOT NULL]:=|DEFAULT default_value]
+	);
+    - Datatype can be a scalar type, programmer-defined SUBTYPE, a record, a collection, %TYPE or %ROWTYPE, or a REFCURSOR
+    - Benefits of Using Records: Data Abstraction, Aggregate Operation, Cleaner and linear code (passing record to procedures etc.)
+    - Can perform record-level operations on any records with compatible structures. In other words, the records must have the same number of fields and the same or convertible datatypes, but they don’t have to be the same type.
+    - Record Level Operations
+      - You can copy the contents of one record to another, as long as they are defined based on the same user-defined record types or compatible %ROWTYPE records
+      - You can assign a value of NULL to a record with a simple assignment.
+      - You can define and pass the record as an argument in a parameter list.
+      - You can RETURN a record back through the interface of a function.
+    - Un-Supported Record Level Operations
+      - You cannot use the IS NULL syntax to see if all fields in the record have NULL values. Instead, you must apply the IS NULL operator to each field individually.
+      - You cannot compare two records—for example, you cannot ask if the records (the values of their fields) are the same or different, or if one record is greater than or less than another. Unfortunately, to answer these kinds of questions, you must compare each field individually.
+      - Prior to Oracle9i Database Release 2, you could not insert into a database table with a record. Instead, you had to pass each individual field of the record for the appropriate column.
+    - Initializing with a record type: curr_company_rec company%ROWTYPE := prev_company_rec;
+    - Trigger pseudo records: OLD, NEW
+      - When you reference OLD and NEW within the body of the trigger, you must preface those identifiers with a colon; within the WHEN clause, however, do not use the colon.
+
+  - Collections (3 Types)
+    - Collections are handy for: Maintain in-program lists of data, Improve multirow SQL operations by an order of magnitude or more, Cache database information
+    - Assosiative Arrays / PL/SQL Tables (TYPE table_type_name IS TABLE OF datatype [ NOT NULL ] INDEX BY index_type;)
+      - Single dimensional, unbounded, sparse collections of homogeneous elements that are available only in PL/SQL
+      - Can index contents by VARCHAR2 or PLS_INTEGER
+      - No Data Found Exception when accessing unintialized index
+      - DELETE without index deletes all elements in the collection and reduces the COUNT to 0
+      - Initialization: collection_name collection_type;
+    - Nested Tables (CREATE [ OR REPLACE ] TYPE type_name AS | IS TABLE OF element_datatype [ NOT NULL ];)
+      - These are also single-dimensional, unbounded collections of homogeneous elements. They are initially dense but can become sparse through deletions.
+      - Nested tables are multisets, which means that there is no inherent order to the elements in a nested table.
+      - ALTER TYPE list_vat MODIFY ELEMENT TYPE VARCHAR2(100) CASCADE;/
+      - The INVALIDATE and CASCADE options are provided to either invalidate all dependent objects or propagate the change to both the type and any table dependents
+      - Initialization: collection_name collection_type [:= collection_type (...)];
+      - When you are declaring a nested table or VARRAY, you must initialize the collection before using it. Otherwise, ORA-06531: Reference to uninitialized collection
+    - VARRAYs (CREATE [ OR REPLACE ] TYPE type_name AS | IS VARRAY (max_elements) OF element_datatype [ NOT NULL ];)
+      - single-dimensional, bounded and never sparse collections of homogeneous elements.
+      - Unlike nested tables, when you store and retrieve a VARRAY, its element order is preserved
+      - ALTER TYPE list_vat MODIFY LIMIT 100 INVALIDATE;/
+      - ALTER TYPE list_vat MODIFY ELEMENT TYPE VARCHAR2(100) CASCADE;/
+      - The INVALIDATE and CASCADE options are provided to either invalidate all dependent objects or propagate the change to both the type and any table dependents
+      - Initialization: collection_name collection_type [:= collection_type (...)];
+      - When you are declaring a nested table or VARRAY, you must initialize the collection before using it. Otherwise, ORA-06531: Reference to uninitialized collection
+    - You can copy the entire contents of one collection to another as long as both are built from the exact same collection type (two different collection types based on the same datatype will not work).
+    - Where You Can Use Collections
+      - Collections as components of a record
+      - Collections as program parameters
+      - Collection as datatype of a function’s return value (assign result to collection variable or to individual variables)
+      - Collection as “columns” in a database table (NESTED TABLE favorite_colors STORE AS favorite_colors_st;)
+      - Collections as attributes of an object type (CREATE TABLE auto_specs OF auto_spec_t NESTED TABLE available_colors STORE AS available_colors_st;)
+    - COUNT function: Returns the current number of elements in a collection; If COUNT is applied to an uninitialized nested table or a VARRAY, it raises the COLLECTION_IS_NULL predefined exception.
+    - DELETE procedure: Removes one or more elements from the collection. Reduces COUNT if the element is not already removed. With VARRAYs, you can delete only the entire contents of the collection.
+      - DELETE, DELETE(i), DELETE(i, j)
+      - invocation of DELETE, it actually keeps a placeholder for the “removed” element, and you can later reassign a value to that element.
+      - If i and/or j refer to nonexistent elements, DELETE attempts to “do the right thing” and will not raise an exception.
+      - If DELETE is applied to an uninitialized nested table or a VARRAY, it raises the COLLECTION_IS_NULL predefined exception
+    - EXISTS function: Returns TRUE or FALSE to indicate whether the specified element exists.
+      - If EXISTS is applied to an uninitialized (atomically null) nested table or a VARRAY, or an initialized collection with no elements, it simply returns FALSE. You can use EXISTS beyond the COUNT without raising an exception.
+    - EXTEND procedure: Increases the number of elements in a nested table or VARRAY. Increases COUNT.
+      - EXTEND(n) appends n null elements. EXTEND(n,i) appends n elements and sets each to the same value as the ith element; this form of EXTEND is required for collections with NOT NULL elements.
+      - If n is null, EXTEND will do nothing.
+      - If EXTEND is applied to an uninitialized nested table or a VARRAY, it raises the COLLECTION_IS_NULL predefined exception. An attempt to EXTEND a VARRAY beyond its declared limit raises the SUBSCRIPT_OUTSIDE_LIMIT predefined exception.
+    - FIRST, LAST functions: Returns the smallest (FIRST) and largest (LAST) subscript in use.
+      - FIRST and LAST return NULL when they are applied to initialized collections that have no elements. For VARRAYs, which have at least one element, FIRST is always 1, and LAST is always equal to COUNT.
+      - If FIRST and LAST are applied to an uninitialized nested table or a VARRAY, they raise the COLLECTION_ IS_NULL predefined exception.
+    - LIMIT function: Returns the maximum number of elements allowed in a VARRAY. This function will return NULL if it is applied to initialized nested tables or to associative arrays.
+    - PRIOR, NEXT functions: Returns the subscript immediately before (PRIOR) or after (NEXT) a specified subscript. You should always use PRIOR and NEXT to traverse a collection, especially if you are working with sparse (or potentially sparse) collections.
+      - If PRIOR and NEXT are applied to initialized collections that have no elements, they return NULL. If i is greater than or equal to COUNT, NEXT returns NULL; if i is less than or equal to FIRST, PRIOR returns NULL.
+    - TRIM procedure: Removes collection elements from the end of the collection (highest defined subscript).
+      - Use TRIM to remove n elements from the end of a nested table or VARRAY. Without arguments, TRIM removes exactly one element
+      - if you combine DELETE and TRIM actions on a collection; for example, if an element that you are trimming has previously been DELETEd, TRIM “repeats” the deletion but counts this as part of n, meaning that you may be TRIMming fewer actual elements than you think.
+      - Attempting to TRIM an associative array will produce a compile-time error.
+      - If n is null, TRIM will do nothing.
+      - The TRIM method will raise the SUBSCRIPT_BEYOND_COUNT predefined exception if you attempt to TRIM more elements than actually exist.
+    - With relatively small strings (100 characters or less), there is no significant difference in performance between string and integer indexing. As the string index value gets longer, however, the overhead of hashing grows substantially. So be careful about what strings you use for indexes!
+    - Collection Pseudo-Functions
+      - CAST: Maps a collection of one type to a collection of another type. This can encompass mapping a VARRAY to a nested table.
+      - MULTISET: Maps a database table to a collection. With MULTISET and CAST, you can actually retrieve rows from a database table as a collection-typed column.
+        - SELECT CAST (MULTISET (SELECT field FROM table) AS collection-type) FROM DUAL;
+	- CAST pseudo-function, MULTISET cannot serve as the target of an INSERT, UPDATE, or DELETE statement.
+      - TABLE: Maps a collection to a database table. This is the inverse of MULTISET: it returns a single column that contains the mapped table.
+        - SELECT * FROM color_models c WHERE 'RED' IN (SELECT * FROM TABLE(c.colors));
+	- Sorting contents of collections: SELECT COLUMN_VALUE Favs FROM TABLE (CAST (scifi_favorites AS names_t)) ORDER BY COLUMN_VALUE
+    - Nested Table Multiset Operations (10g onwards)
+      - = BOOLEAN Compares two nested tables, and returns TRUE if they have the same named type and cardinality and if the elements are equal.
+      - <> or !=: BOOLEAN: Compares two nested tables, and returns FALSE if they differ in named type, cardinality, or equality of elements.
+      - [NOT] IN (): BOOLEAN: Returns TRUE [FALSE] if the nested table to the left of IN exists in the list of nested tables in the parentheses.
+      - x MULTISET EXCEPT [DISTINCT] y: NESTED TABLE: Performs a MINUS set operation on nested tables x and y, returning a nested table whose elements are in x, but not in y. x, y, and the returned nested table must all be of the same type. The DISTINCT keyword instructs Oracle to eliminate any element in x which is also in y, regardless of the number of occurrences.
+      - x MULTISET INTERSECT [DISTINCT] y: NESTED TABLE: Performs an INTERSECT set operation on nested tables x and y, returning a nested table whose elements are in both x and y. x, y, and the returned nested table must all be of the same type. The DISTINCT keyword forces the elimination of duplicates from the returned nested table, including duplicates of NULL, if they exist.
+      - x MULTISET UNION [DISTINCT] y: NESTED TABLE: Performs a UNION set operation on nested tables x and y, returning a nested table whose elements include all those in x as well as those in y. x, y, and the returned nested table must all be of the same type. The DISTINCT keyword forces the elimination of duplicates from the returned nested table, including duplicates of NULL, if they exist.
+      - SET(x): NESTED TABLE: Returns nested table x without duplicate elements.
+      - x IS [NOT] A SET: BOOLEAN: Returns TRUE [FALSE] if the nested table x is composed of unique elements.
+      - x IS [NOT] EMPTY BOOLEAN Returns TRUE [FALSE] if the nested table x is empty.
+      - e [NOT] MEMBER [OF] x BOOLEAN Returns TRUE [FALSE] if the expression e is a member of the nested table x.
+      - y [NOT] SUBMULTISET [OF] x BOOLEAN Returns TRUE [FALSE] if the nested table y contains only elements that are also in nested table x.
+    - Oracle privilege—EXECUTE—applies to collection types.
+
+  - Miscellaneous Data Types
+    - The BOOLEAN Datatype: Available only in PL/SQL
+    - The RAW Datatype: Used to store small amounts of binary data; variable_name RAW(maximum_size); RAW PL/SQL variable can hold up to 32,767 bytes of data, a RAW database column can hold only 2,000 bytes.
+    - The UROWID and ROWID Datatypes
+    - The LOB Datatypes: BFILE (External LOB), BLOB, CLOB, NCLOB
+      - External LOBs cannot participate in transactions
+      - LOB Locators
+      - Empty Versus NULL LOBs
+        - An empty LOB is what you have when a LOB locator doesn’t point to any LOB data. This is not the same as a NULL LOB, which is a LOB column (or variable) that doesn’t hold a LOB locator.
+	- EMPTY_CLOB() function for initialization
+      - DBMS_LOB.GET_LENGTH(some_lob) return zero for empty LOB
+      - DBMS_LOB.OPEN(directions, DBMS_LOB.LOB_READWRITE); not strictly neccessary to open/close, but it is recommended
+      - DBMS_LOB.WRITE Ex: DBMS_LOB.WRITE(directions, length, offset, first_direction);
+      - DBMS_LOB.WRITEAPPEND Ex: DBMS_LOB.WRITEAPPEND(directions, LENGTH(more_directions), more_directions);
+      - DBMS_LOB.READ Ex: DBMS_LOB.READ(directions_clob, no_of_chars_to_be_read, offset, directions_destination); -- 2nd parameter is IN OUT parameter, system updates with the no of char read
+      - DBMS_LOB.CLOSE(directions);
+      - When writing to a LOB, as I have done here, there is no need to update the LOB column in the table.
+      - To write to an existing LOB, I’ll need to do a SELECT...FOR UPDATE to obtain a lock explicitly. Otherwise Oracle will give a ORA-22920 row containing the LOB value is not locked error.
+      - LOB updates take place within the context of a transaction.
+      - web_page BFILE; web_page := BFILENMAE('BFILE_DATA','TanneryFalls.htm'); where BFILE_DATA is DIRECTORY object
+      - UTL_RAW.CAST_TO_VARCHAR2(html)
+      - The maximum number of files that can be opened within a session is established by the database initialization parameter, SESSION_MAX_OPEN_FILES
+      - DBMS_LOB.LOADCLOBFROMFILE: Loads CLOBs from BFILEs. Takes care of any needed character set translation.
+      - DBMS_LOB.LOADBLOBFROMFILE: Loads BLOBs from BFILEs. Does the same thing as DBMS_LOB.LOADFROMFILE, but with an interface that is consistent with that of LOADCLOBFROMFILE
+      - Temporary LOBs
+        - Temporary LOBs are ideal as transient workspaces for data manipulation, and because no logging is done, and no redo records are generated, they offer better performance than persistent LOBs do
+	- A temporary LOB is empty when it is created: you don’t need to (and, in fact, you can’t) use the EMPTY_CLOB and EMPTY_BLOB functions to initialize LOB locators for a temporary LOB.
+	- By default, all temporary LOBs are deleted at the end of the session in which they were created. If a process dies unexpectedly or if the database crashes, then temporary LOBs are deleted, and the space for temporary LOBs is freed.
+	- if you use temporary LOBs, you need to make sure that your temporary tablespace is large enough to accommodate them.
+	- DBMS_LOB.CREATETEMPORARY
+	- DBMS_LOB.FREETEMPORARY
+	- DBMS_LOB.ISTEMPORARY function
+      - In PL/SQL, but not in SQL, you can use various relational operators such as lessthan (<), greater-than (>), and equals (=) with LOB variables.
+    - Predefined Object Types
+      - XML Type, URI Type and Any Type
+ 
+
+
+- Dynamic SQL and Dynamic PL/SQL
+  - Why: Execute DDL statements, Support ad hoc query and update requirements of web-based applications, Softcode business rules and formulas
+  - Two Ways: DBMS_SQL, native dynamic SQL (NDS)
+  - For almost every situation you face, however, NDS will be the preferred implementation approach.
+  - NDS Statements
+    - EXECUTE IMMEDIATE SQL_string
+        [INTO {define_variable[, define_variable]... | record}]
+        [USING [IN | OUT | IN OUT] bind_argument [, [IN | OUT | IN OUT] bind_argument]...];
+    - You can use EXECUTE IMMEDIATE for any SQL statement or PL/SQL block except for multiple-row queries. If SQL_string ends with a semicolon, it will be treated as a PL/SQL block; otherwise, it will be treated as either DML or DDL.
+    - The string may contain placeholders for bind arguments, but you cannot use bind values to pass in the names of schema objects, such as table names or column names.
+    - Note that you cannot pass a NULL literal value. Instead, you must pass a variable of the correct type that happens to have a value of NULL
+    - NDS supports all SQL datatypes. You can bind scalar values like strings, numbers, and dates, but you can also bind collections, LOBs, instances of an object type, XML documents, REFs, and more. You may not, however, bind values in the USING clause whose datatypes are specific to PL/SQL, such as Booleans, associative arrays, and user-defined record types.
+    - SQL%ROWCOUNT can be used in NDS
+    - OPEN FOR statement:   OPEN {weak_cursor_variable | :host_cursor_variable} FOR SQL_string [USING bind_argument[, bind_argument]...];
+  - A statement in which the number of columns selected (for a query) or the number of bind variables set is not known until runtime. For this, you will use the DBMS_SQL package
+  - Bind Variables
+    - Cannot use bind values to pass in the names of schema objects, such as table names or column names.
+    - Why Restriction? When you pass a string to EXECUTE IMMEDIATE, the runtime engine must first parse the statement. The parse phase guarantees that the SQL statement is properly defined.
+    - When you are executing a dynamic query, all bind arguments must be of mode IN, except when you are taking advantage of the RETURNING clause.
+    - Duplicate Placeholders: for SQL you need to paas all values, for PL/SQL you can pass only one
+  - Use of objects and collections is transparent
+  - Dynamic PL/SQL
+    - The dynamic string must be a valid PL/SQL block. It must start with the DECLARE or BEGIN keyword, and end with an END statement and semicolon. The string will not be considered PL/SQL code unless it ends with a semicolon.
+    - In your dynamic block, you can access only PL/SQL code elements that have global scope
+    - Errors raised within a dynamic PL/SQL block can be trapped and handled by the local block in which the string was run with the EXECUTE IMMEDIATE statement.
+    - Use Invoker Rights for Shared Programs (AUTHID CURRENT_USER)
+  - Always include an error-handling section in code that calls EXECUTE IMMEDIATE and OPEN FOR.
+  - Use Binding Rather Than Concatenation
+    - Binding negates the chance of code injection
+    - Binding helps avoid implicit conversions
+    - Binding is easier to write and maintain
+    - Binding is usually faster
+  - Bind variables will negate the use of any histogram statistics because the bind values are assigned only after the statement has been parsed. The cost-based optimizer may, therefore, have less information to work with, and be unable to come up with the best execution plan for your SQL statement.
+  - Use DBMS_ASSERT to validate inputs
+  - When to Use DBMS_SQL
+    - NDS is much easier to write; you need less code, and the code you write is more intuitive, leading to many fewer bugs. The code is also much easier to maintain.
+    - NDS works with all SQL datatypes, including user-defined objects and collection types (associative arrays, nested tables, and VARRAYs). DBMS_SQL works only with Oracle7 Database-compatible datatypes.
+    - Parse Very Long Strings with DBMS_SQL
+    - DBMS_SQL.varchar2s Collection type
+    - DBMS_SQL.parse collection type overlaoded method for parsing the statement
+    - cur PLS_INTEGER := DBMS_SQL.OPEN_CURSOR;
+    - -- Parse the query. DBMS_SQL.PARSE (cur, 'SELECT hire_date, salary FROM employees', DBMS_SQL.NATIVE);
+
+
+- Data Retrieval
+  - Implicit Cursor, Explicit Cursor, Cursor Variables, Cursor Expressions, Dynamic SQL Queries
+  - Cursor Attributes
+    - %FOUND Returns TRUE if the record was fetched successfully, FALSE otherwise. If the cursor has not yet been opened, the database raises, the INVALID_CURSOR exception.
+    - %NOTFOUND Returns TRUE if the record was not fetched successfully, FALSE otherwise
+    - %ROWCOUNT Returns the number of records fetched from cursor at that point in time
+    - %ISOPEN Returns TRUE if cursor is open, FALSE otherwise
+    - %BULK_ROWCOUNT Returns the number of records modified by the FORALL statement for each collection element
+    - %BULK_EXCEPTIONS Returns exception information for rows modified by the FORALL statement for each collection element
+  - For implicit cursors, the cursor name is hardcoded as “SQL”
+  - You can reference cursor attributes in your PL/SQL code, but you cannot use those attributes inside a SQL statement.
+  - Fetch Operation: When you are working with explicit cursors, remember that FETCH does nothing (does not raise an error) if there are no more rows to retrieve—you must use cursor attributes to identify this condition.
+  - the INVALID_CURSOR exception
+  - Referencing PL/SQL Variables in a Cursor: In PL/SQL, the select list of a SELECT may contain PL/SQL variables and complex expressions.
+  - Choosing Between Explicit and Implicit Cursors: In other words, don’t worry about explicit versus implicit. Instead, worry about how you can tune and maintain your code if single-row queries are duplicated throughout your code.
+  - Implicit Cursor: SELECT column_list [BULK COLLECT] INTO PL/SQL variable list...rest of SELECT statement...
+  - Error Handling with Implicit Cursors: NO_DATA_FOUND, TOO_MANY_ROWS
+  - The implicit cursor attribute values always refer to the most recently executed SQL statement, regardless of the block or program from which the SQL statement was executed
+  - Explicit Cursor Declaration: CURSOR cursor_name [ ( [ parameter [, parameter ...] ) ] [ RETURN return_specification ] IS SELECT_statement [FOR UPDATE [OF [column_list]];
+  - The RETURN clause of a cursor may be made up of any of the following datatype structures: table_name%ROWTYPE, cursor%ROWTYPE, or record_type
+  - Regardless of when you perform the first fetch, however, the read consistency model in the Oracle database guarantees that all fetches will reflect the data as it existed when the cursor was opened.
+  - Database initialization parameter, OPEN_CURSORS (the value is on a per-session basis).
+  - The scope of the cursor parameter is confined to that cursor. You cannot refer to the cursor parameter outside of the SELECT statement associated with the cursor
+  - Cursor parameters can be assigned default values. Ex: CURSOR emp_cur (emp_id_in NUMBER := 0) IS ...
+  - You cannot execute another FETCH against a FOR UPDATE cursor after you COMMIT or ROLLBACK. You will have lost your position in the cursor.
+  - PL/SQL provides the WHERE CURRENT OF clause for both UPDATE and DELETE statements inside a cursor. This clause allows you to easily make changes to the most recently fetched row of data. It should be combined with FOR UPDATE cursors only. WHERE CURRENT OF cursor_name;
+  - Cursor Variable and REF CURSORS
+    - Explicit and implicit cursors are static in that they are tied to specific queries. The cursor variable can be opened for any query, even for different queries within a single program execution.
+    - Pass a cursor variable as an argument to a procedure or function. You can, in essence, share the results of a cursor by passing the reference to that result set.
+    - Assign the contents of one cursor (and its result set) to another cursor variable. Because the cursor variable is a variable, it can be used in assignment operations
+    - TYPE cursor_type_name IS REF CURSOR [ RETURN return_type ];
+    - If the cursor variable has not yet been assigned to any cursor object, the OPEN FOR statement implicitly creates an object for the variable
+    - ROWTYPE_MISMATCH exception with weakly typed cursor when run-time check happens     
+    - Scope of cursor object: Once an OPEN FOR creates a cursor object, that cursor object remains accessible as long as at least one active cursor variable refers to that cursor object. This means that you can create a cursor object in one scope (PL/SQL block) and assign it to a cursor variable. Then, by assigning that cursor variable to another cursor variable with a different scope, the cursor object remains accessible even if the original cursor variable has gone out of scope.
+    - Cursor Variable Restrictions:
+      - Cursor variables cannot be declared in a package because they do not have a persistent state.
+      - You cannot use remote procedure calls (RPCs) to pass cursor variables from one server to another.
+      - If you pass a cursor variable as a bind variable or host variable to PL/SQL, you will not be able to fetch from it from within the server unless you also open it in that same server call.
+      - The query you associate with a cursor variable in an OPEN FOR statement cannot use the FOR UPDATE clause if you are running Oracle8i Database or earlier.
+      - You cannot test for cursor variable equality, inequality, or nullity using comparison operators.
+      - You cannot assign NULLs to a cursor variable. Attempts to do so will result in a PLS-00382 Expression is of wrong type error message.
+      - Database columns cannot store cursor variable values. You will not be able to use REF CURSOR types to specify column types in statements to CREATE TABLEs.
+      - The elements in a nested table, associative array, or VARRAY cannot store the values of cursor variables. You will not be able to use REF CURSOR types to specify the element type of a collection.
+  - Cursor Expressions
+    - CURSOR (subquery)
+
+
+- PL/SQL Program Structures :: Exception Handlers
+  - Scope, Named Exceptions, Unnamed Exceptions, Raise, Exception Block, System Exceptions, Appliction-Defined Exceptions, Execution Block, Handle, Handler, Propagation
+  - STANDARD, DBMS_SQL, UTL_FILE packages where system defined exceptions reside
+  - Named Exception:
+    CREATE PROCEDURE proc_name
+    IS
+      exception_name EXCEPTION;
+    BEGIN
+      -- execution block
+      RAISE exception_name;
+    EXCEPTION
+      WHEN exception_name THEN
+      -- exception block
+    END;
+  - To associate numbers to names, always it is better to decalre all exceptions in a pacakage
+    DECLARE
+      exception_name EXCEPTION;
+      PRAGMA EXCEPTION_INIT (exception_name, integer);
+  - Scope of Named System Exceptions, Named Programmer Defined Exceptions, Anonymous System Exceptions, Anonymous Programmer Defined Exceptions
+  - PROCEDURE RAISE_APPLICATION_ERROR (
+         num binary_integer,
+         msg varchar2,
+         keeperrorstack boolean default FALSE);
+  - WHEN exception_name [ OR exception_name ... ] THEN
+         executable statements
+  - SQLCODE Function to return latest error code, returns 0 when used outside exception block, Maintains a staCK
+  - SQLERRM or SQLERRM(error_code), Return only 512 bytes (and only 255 bytes in earlier versions)
+  - DBMS_UTILITY.FROMAT_ERROR_STACK
+  - DBMS_UTILITY.FORMAT_ERROR_BACKTRACE
+  - DBMS_UTILITY.FORMAT_CALL_STACK
+  - Exceptions: Deliberate, Unfortunate, Unexpected
+
+
+
+
+- DML Trigger
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  {AFTER|BEFORE}
+  {INSERT|DELETE|UPDATE|UPDATE OF column_list} ON table_name
+  [REFERENCING OLD AS alias_name NEW AS alias_name]
+  [FOR EACH ROW]
+  [FOLLOWS trigger_name]
+  [WHEN (...)]
+  [DECLARE ...]
+  BEGIN
+    ...executable_statements...
+  [EXCEPTION ...]
+  END [trigter_name];
+  /
+  - Transaction level is same as DML statement, so can not use transaction statements (can declare as autonomous_transaction)
+  - WHEN clause is only with row-level triggers & can only use built-in functions in it
+  - NEW & OLD, same as %ROWTYPE record, Can not do record level ops, Can not pass as record to other functions/procs, Contains ROWID values
+  - REFERENCING OLD AS old_var NEW AS new_var
+  - Operational directives: INSERTING | DELETING | UPDATING | UPDATING ('column_name')
+  - Operation directives can be called from anywhere in PL/SQL Code, even in functions/procs called from trigger
+  - Field values in the NEW records can be changed only in BEFORE row triggers
+  - In case of multiple trigger we can specify the dependency using FOLLOWS (only in 11g)
+  - Mutating table errors: occur only in row-level triggers, can use autonomous_transaction to query from same table
+  - Compound triggers (11g): Can use FOLLOWS, global variables automatically reset to initial value for each statement
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  FOR {INSERT|DELETE|UPDATE|UPDATE OF column_list} ON table_name
+  COMPOUND TRIGGER
+    ...global_var_declaration...
+    BEFORE STATEMENT IS 
+    BEGIN
+      ...executable_statements...
+    END BEFORE STATEMENT;
+  
+    BEFORE EACH ROW IS 
+    BEGIN
+      ...executable_statements...
+    END BEFORE EACH ROW;
+  
+    AFTER STATEMENT IS 
+    BEGIN
+      ...executable_statements...
+    END AFTER STATEMENT;
+  
+    AFTER EACH ROW IS 
+    BEGIN
+      ...executable_statements...
+    END AFTER EACH ROW;
+  END;
+  /
+
+- DDL Triggers
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  {AFTER|BEFORE} {DDL event} ON {DATABASE|SCHEMA}
+  [WHEN (...)]
+  DECLARE
+     ...variable_declaration...
+  BEGIN
+     ...code...
+  END;
+  /
+  - Available Evenets & Attributes
+
+- Database Event Triigers
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  {BEFORE|AFTER} {database_event} ON {DATABASE|SCHEMA}
+  DECLARE
+     variable_declaration
+  BEGIN
+     ...code...
+  END;
+  /
+
+- INSTEAD OF Triggers
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  INSTEAD OF operation
+  ON view_name
+  FOR EACH ROW
+  BEGIN
+    ...code goes here...
+  END;
+  /
+  - They can be used to make nonupdateable views updateable and to override the default behavior of views that are updateable
+  TRIGGER lines_ins
+  INSTEAD OF INSERT ON NESTED TABLE lines OF book_chapter_view
+  BEGIN
+    INSERT INTO book_line
+               (chapter_number,
+                line_number,
+                line_text)
+    VALUES(:PARENT.chapter_number,
+           :NEW.line_number,
+           :NEW.line_text);
+  END;
+
+- SUSPENDED Triggers
+  CREATE [OR REPLACE] TRIGGER trigger_name
+  AFTER SUSPEND
+  ON {DATABASE | SCHEMA}
+  BEGIN
+  ... code...
+  END;
+  /
+
+- ALTER TRIGGER trigger_name  {DISABLE|ENABLE};
+- Can create triggers in DISABLED state (Starting 11g)
+
+- PL/SQL Application Construction
+  - Procedures, Functions, and Parameters
+    - PROCEDURE [schema.]name[( parameter[, parameter...] ) ]
+        [AUTHID DEFINER | CURRENT_USER]
+      IS
+        [declarations]
+      BEGIN
+        executable statements 
+       [ EXCEPTION
+         exception handlers]
+      END [name];
+    - We can use RETURN in the procedure, but procedure version of the RETURN does not take an expression
+    - Unlike a procedure call, which is a standalone executable statement, a call to a function can exist only as part of an executable statement
+    - FUNCTION [schema.]name[( parameter[, parameter...] ) ]
+         RETURN return_datatype
+         [AUTHID DEFINER | CURRENT_USER]
+         [DETERMINISTIC] -- An optimization hint that lets the system use a saved copy of the function’s return result, if available
+         [PARALLEL_ENABLE ...]  -- An optimization hint that enables the function to be executed in parallel when called from within a SELECT statement
+         [PIPELINED]  -- Specifies that the results of this table function should be returned iteratively via the PIPE ROW command
+         [RESULT_CACHE ...]  -- New to Oracle Database 11g. Specifies that the input values and result of this function should be stored in the new function result cache
+      IS
+         [declaration statements]
+      BEGIN
+         executable statements
+      [EXCEPTION
+         exception handler statements]
+      END [name];
+    - A PL/SQL function can return virtually any kind of data known to PL/SQL, from scalars (single, primitive values like dates and strings) to complex structures such as collections, object types, cursor variables, and LOBs. You may not, however, return an exception through a function
+    - With PL/SQL, in contrast to some other programming languages, you cannot simply ignore the return value of a function if you don’t need it
+    - Function finishes executing without executing a RETURN statement, Oracle will raise the following error (a sure sign of a very poorly designed function):
+    - Warning: This error will not be raised if the function propagates an exception of its own unhandled out of the function
+    - Any assignments made to OUT parameters are rolled back when an exception is raised in the program. Because the value for an OUT parameter is not actually assigned until a program completes successfully, any intermediate assignments are therefore ignored
+    - Local or Nested Modules
+      - A local or nested module is a procedure or function that is defined in the declaration section of a PL/SQL block (anonymous or named). 
+      - Reducing code volume
+      - Improving readability
+    - Method Overloading
+      - The datatype “family” of at least one of the parameters of overloaded programs must differ. Note:Overloading with Numeric Types in 10g
+      - Overloaded programs with parameter lists that differ only by name must be called using named notation
+      - The parameter list of overloaded programs must differ by more than parameter mode
+      - All of the overloaded programs must be defined within the same PL/SQL scope or block (anonymous block, standalone procedure or function, or package)
+      - Overloaded functions must differ by more than their return type (the datatype specified in the RETURN clause of the function)
+    - Forward Declarations
+    - Calling user defined function from SQL
+      - Requirements for calling functions in SQL
+      - Restrictions on user-defined functions in SQL
+      - Read consistency and user-defined functions
+
+- PL/SQL Application Construction :: Packages
+  - Enhance and maintain applications more easily
+  - Improve overall application performance
+  - Shore up application or built-in weaknesses
+  - Minimize the need to recompile code
+  - Information hiding, Public and private, Package specification, Package body, Initialization, Session persistence
+  - Package Specification: declare any elements of any data type, Cursor with query or return type, proc/function specification
+  - /* File on web: favorites.sql */
+    1 PACKAGE favorites_pkg
+    2 AUTHID CURRENT_USER
+    3 IS /* or AS */
+    4 -- Two constants; notice that I give understandable
+    5 -- names to otherwise obscure values.
+    6
+    7 c_chocolate CONSTANT PLS_INTEGER := 16;
+    8 c_strawberry CONSTANT PLS_INTEGER := 29;
+    9
+    10 -- A nested table TYPE declaration
+    11 TYPE codes_nt IS TABLE OF INTEGER;
+    12
+    13 -- A nested table declared from the generic type.
+    14 my_favorites codes_nt;
+    15
+    16 -- A REF CURSOR returning favorites information.
+    17 TYPE fav_info_rct IS REF CURSOR RETURN favorites%ROWTYPE;
+    18
+    19 -- A procedure that accepts a list of favorites
+    20 -- (using a type defined above) and displays the
+    21 -- favorite information from that list.
+    22 PROCEDURE show_favorites (list_in IN codes_nt);
+    23
+    24 -- A function that returns all the information in
+    25 -- the favorites table about the most popular item.
+    26 FUNCTION most_popular RETURN fav_info_rct;
+    27
+    28 END favorites_pkg; -- End label for package
+  - Package Body is not required always, can have declaration, execution/initialization, and exception sections
+  - Move assignment of global variables to initialization section to trap errors properly
+  - Packaged data is Global within oracle session. If you want to share data between Oracle sessions, you can use the DBMS_PIPE package or Oracle Advanced Queuing
+  - Serializable Packages: pragma SERIALLY_REUSABLE should be placed both in specification and body
+    - For such packages, the duration of package state (the values of variables, the open status of a packaged cursor, etc.) can be reduced from a whole session to a single call of a program in the package
+    - The global memory for serialized packages is allocated in the SGA, not in the user’s UGA
+
+- PL/SQL Application Construction :: Managing PL/SQL Code
+  - Managing Code in the Database
+    - Information about that code is available via the SQL language
+    - The database manages dependencies between your stored objects
+    - USER_ARGUMENTS, USER_DEPENDENCIES, USER_ERRORS, USER_IDENTIFIERS(11g, ALTER SESSION SET plscope_settings='IDENTIFIERS:ALL'), USER_OBJECTS, USER_OBJECT_SIZE, USER_PLSQL_OBJECT_SETTINGS, USER_PROCEDURES, USER_SOURCE, USER_STORED_SETTINGS, USER_TRIGGERS, USER_TRIG_COLUMNS
+    - Display and Search Source Code using USER_SOURCE
+    - Identify any programs that are not taking full advantage of the optimizing compiler (an optimization level of 1 and 0)
+    - Remote Dependencies: TIMESTAMP (default), SIGNATURE
+  - Managing Dependencies and Recompiling Code
+    - Do not use the currently compiled version of a program if any of the objects on which it depends have changed since it was compiled
+    - Fine-Grained Dependency (Oracle Database 11g)
+    - Prior to Oracle Database 11g, dependency information was recorded only with the granularity of the object as a whole. If any change at all is made to that object, all dependent program units are marked INVALID, even if the change does not affect that program unit.
+    - In Oracle Database 11g, Oracle fine-tuned its dependency tracking down to the element within an object.
+    - Note, however, that unless you fully qualify all references to PL/SQL variables inside your embedded SQL statements, you will not be able to take full advantage of this enhancement.
+    - if it depends on an object in a remote database and that object changes, the local database does not attempt to invalidate the calling PL/SQL program in real time. Instead, the local database defers the checking
+    - The model is simple: it uses either the timestamp or the signature, depending on the current value of the parameter REMOTE_DEPENDENCIES_MODE. If that timestamp or signature information, which is stored in the local program’s bytecode, doesn’t match the actual value of the remote procedure at runtime, you get the ORA-04062 error until runtime.
+    - In contrast, the timestamp mode, while prone to false positives, is immune to false negatives. In other words, it won’t miss any needed recompilations, but it may force recompilation that is not strictly required. This safety is no doubt why Oracle uses it as the default for server-to-server RPCs.
+    - If you do use the signature method, Oracle recommends that you add any new functions or procedures at the end of package specifications because doing so reduces false positives.
+    - DBMS_UTILITY.COMPILE_SCHEMA ( schema VARCHAR2, compile_all BOOLEAN DEFAULT TRUE, reuse_settings BOOLEAN DEFAULT FALSE);
+    - UTL_RECOMP: This built-in package, first introduced in Oracle Database 10g, was designed for database upgrades or patches that require significant recompilation. It has two programs, one that recompiles invalid objects serially and one that uses DBMS_JOB to recompile in parallel
+  - Compile-Time Warnings
+    - PLW-06002: Unreachable code
+    - PLW-05000: Mismatch in NOCOPY qualification between specification and body
+    - PLW-05001: Previous use of ’string’ (at line string) conflicts with this use (PLS-00371: at most one declaration for 'A' is permitted in the declaration section.)
+    - PLW-05003: Same actual parameter (string and string) at IN and NOCOPY may have side effects
+    - PLW-05004: Identifier string is also declared in STANDARD or is a SQL built-in
+    - PLW-05005: Function string returns without value at line string
+    - PLW-07203: Parameter 'string' may benefit from use of the NOCOPY compiler hint
+    - PLW-07204: Conversion away from column type may result in suboptimal query plan
+    - PLW-06009: Procedure “string” OTHERS handler does not end in RAISE or RAISE_APPLICATION_ERROR (Oracle Database 11g)
+    - ALTER SYSTEM SET PLSQL_WARNINGS='string'  ('ENABLE:SEVERE', 'ENABLE:ALL', 'ENABLE:PERFORMANCE')
+    - Already compiled program, you can issue a command like this: ALTER PROCEDURE hello COMPILE PLSQL_WARNINGS='ENABLE:ALL' REUSE SETTINGS; Make sure to include REUSE SETTINGS to make sure that all other settings (such as the optimization level) are not affected by the ALTER command.
+    - Oracle also provides the DBMS_WARNING package, which provides the same capabilities to set and change compile-time warning settings through a PL/SQL API.
+  - Testing PL/SQL Programs
+    - Commit to testing 
+    - Get those test cases out of your head before you start writing your program—and onto a piece of paper or into a tool that manages your tests
+    - Don’t worry about 100% test coverage
+    - Integrate testing into development
+    - Get those regression tests in place
+    - Automated Testing Options for PL/SQL
+      - utPLSQL (JUnit for PL/SQL), PLUTO, dbFit, Quest Code Tester for Oracle (offers the highest level of test automation)
+  - Tracing PL/SQL Execution
+    - DBMS_APPLICATION_INFO
+      - An API that allows applications to “register” their current execution status with the Oracle database
+      - Using the V$ virtual tables as the trace repository is what distinguishes this package from all other tracing alternatives
+    - Quest Error Manager (QEM)
+      - While Quest Error Manager (QEM) is intended primarily as a generalized exception management utility for PL/SQL applications, you can also use QEM to perform application tracing.
+    - DBMS_TRACE
+      - The DBMS_TRACE built-in package provides programs to start and stop PL/SQL tracing in a session. When tracing is turned on, the engine collects data as the program executes. The data is then written out to the Oracle server trace file.
+    - Log4PLSQL
+  - Debugging PL/SQL Programs
+    - The Wrong Way To Debug
+      - Disorganized debugging
+      - Irrational debugging
+    - Debugging Tips and Strategies
+      - Use a source code debugger (Unfortunately, if your code is deployed at some customer site, debugging with a GUI tool is not always possible, in which case you usually have to resort to some sort of logging mechanism.)
+      - Gather as much data as possible about when, where, and how the error occurred.
+      - Run the program again to see if the error is reproducible
+      - Narrow the test case needed to generate the error
+      - Examine the circumstances under which the problem does not occur
+      - Remain logical at all times
+      - Analyze instead of trying
+      - Examine your program, and mentally try out different scenarios to test your hypothesis
+      - Take breaks, and ask for help
+      - Change and test one area of code at a time
+  - Protecting Stored Code
+    - Oracle offers a program known as wrap that hides or obfuscates most, if not all, of these secrets
+    - A wrapped program is treated within the database just as normal PL/SQL programs are treated; the only difference is that prying eyes can’t query the USER_SOURCE data dictionary to extract trade secrets
+    - Restrictions on and Limitations of Wrapping
+      - Wrapped code is upward-compatible only.
+      - You cannot wrap the source code in triggers, call the packaged program from the trigger
+      - Wrapping makes reverse engineering of your source code difficult
+      - You cannot include SQL*Plus substitution variables inside code that must be wrapped.
+    - wrap iname=infile [oname=outfile]
+    - Dynamic Wrapping with DBMS_DDL
+      - DBMS_DDL.WRAP : Returns a string containing an obfuscated version of your code.
+      - DBMS_DDL.CREATE_WRAPPED : Compiles an obfuscated version of your code into the database
+    
+
+- PL/SQL Application Construction :: I/O and PL/SQL
+  - DBMS_OUTPUT.GET_LINE or DBMS_OUTPUT.GET_LINES
+  - SET SERVEROUTPUT ON SIZE UNLIMITED
+  - DBMS_OUTPUT.NEW_LINE to flush the buffer
+  - The largest string that you can pass in one call to DBMS_OUTPUT.PUT_LINE is 32,767 bytes in the most recent releases of Oracle. With Oracle Database 10g Release 1 or earlier, the limit is 255 bytes.
+
+- Optimizing PL/SQL Performance
+  - Tune access to code and data in the SGA
+  - Optimize your SQL
+  - Use the most aggressive compiler optimization level possible
+  - Once you are confident that the context in which your PL/SQL code runs is not obviously inefficient, you should turn your attention to your packages and other code.
+  - Write your application with best practices and standards in mind
+  - Analyze your application’s execution profile
+  - Tune your algorithms
+  - Take advantage of any PL/SQL-specific performance features
+  - Balance performance improvements against memory consumption
+  - Tools to Assist in Optimization
+    - These fall into several categories: analyzing memory usage, identifying bottlenecks in PL/SQL code, calculating elapsed time, choosing the fastest program, avoiding infinite loops, and using performance-related warnings
+    - Program data consumes PGA; each session connected to the Oracle database has its own PGA.
+    - Memory consumption is an especially critical factor whenever you work with collections (array-like structures), as well as object types with a large number of attributes and records having a large number of fields.
+    - DBMS_PROFILER : This built-in package allows you to turn on execution profiling in a session. Then, when you run your code, the Oracle database uses tables to keep track of detailed information about how long each line in your code took to execute. You can then run queries on these tables or—preferably—use screens in products like Toad or SQL Navigator to present the data in a clear, graphical fashion.
+    - DBMS_HPROF (hierarchical profiler) : Oracle Database 11g features a new hierarchical profiler that makes it easier to roll performance results up through the execution call stack. DBMS_PROFILER provides “flat” data about performance, which makes it difficult to answer questions like “How much time altogether is spent in the ADD_ITEM procedure?” The hierarchical profiler makes it easy to answer such questions
+    - Calculating Elapsed Time
+      - DBMS_UTILITY.GET_TIME and DBMS_UTILITY.GET_CPU_TIME. Both are available for Oracle Database 10g and later.
+  - ALTER SESSION SET PLSQL_OPTIMIZE_LEVEL = 2;
+  - Oracle retains optimizer settings on a module-by-module basis. When you recompile a particular module with nondefault settings, the settings will “stick,” allowing you to recompile later using REUSE SETTINGS.
+  - You must call that function within a SQL statement to get the effects of deterministic caching; that is a significant constraint on the usefulness of this type of caching
+  - package-based caching
+  - Caching table contents in a package
+  - Just-in-time caching of table data
+
+  - Bulk Processing fro Multi-Row SQL (FOR ALL and BULK COLLECT)
+    - This reduction in context switches leads to a surprisingly sharp reduction in elapsed time for multirow SQL statements executed in PL/SQL
+    - With BULK COLLECT you can retrieve multiple rows of data through either an implicit or an explicit cursor with a single roundtrip to and from the database
+    - ... BULK COLLECT INTO collection_name[, collection_name] ...
+    - From 9i, can use BULK COLLECT with both dynamic and static SQL.
+    - Can use BULK COLLECT keywords in any of the following clauses: SELECT INTO, FETCH INTO, and RETURNING INTO.
+    - The SQL engine automatically initializes and extends the collections you reference in the BULK COLLECT clause
+    - You can’t use the SELECT...BULK COLLECT statement in a FORALL statement.
+    - SELECT...BULK COLLECT will not raise NO_DATA_FOUND if no rows are found. Instead, you must check the contents of the collection to see if there is any data inside it. If the query returns no rows, the collection’s COUNT method will return 0.
+    - In Oracle Database 10g and later, the PL/SQL compiler will automatically optimize a cursor FOR loop so that it runs with performance comparable to BULK COLLECT. You do not need to explicitly transform this code yourself—unless the body of your loop executes, directly or indirectly, DML statements. The database does not optimize DML statements into FORALL, so you will need to explicitly convert your cursor FOR loop to use BULK COLLECT. You can then use the collections populated by the BULK COLLECT to “drive” the FORALL statement.
+    - FETCH cursor BULK COLLECT INTO ... [LIMIT rows]; only with FETCH INTO
+    - Use BULK COLLECT inside a FORALL statement, in order to take advantage of the RETURNING clause.
+    - BULK COLLECT speeds up queries. FORALL does the same thing for inserts, updates, deletes and merges (FORALL with a merge is supported in Oracle Database 11g only)
+    - FORALL index IN [ lower_bound ... upper_bound | INDICES OF indexing_collection | VALUES OF indexing_collection ] [ SAVE EXCEPTIONS ] sql_statement;
+    - The body of the FORALL statement must be a single DML statement
+    - The DML statement must reference collection elements, indexed by the index_row variable in the FORALL statement
+    - Do not declare a variable for index_row. It is declared implicitly as PLS_INTEGER by the PL/SQL engine
+    - The lower and upper bounds must specify a valid range of consecutive index numbers for the collection(s) referenced in the SQL statement
+    - Until Oracle Database 11g, fields within collections of records could not be referenced within the DML statement. Instead, you could only reference the row in the collection as a whole, whether the fields are collections of scalars or collections of more complex objects
+    - The collection subscript referenced in the DML statement cannot be an expression
+    - The FORALL statement and %BULK_ROWCOUNT use the same subscripts or row numbers in the collections
+    - When the INSERT affects only a single row (when you specify a VALUES list, for example), a row’s value in %BULK_ROWCOUNT will be equal to 1. For INSERT... SELECT statements, however, %BULK_ROWCOUNT can be greater than 1.
+    - The FORALL statement allows you to pass multiple SQL statements all together (in bulk) to the SQL engine. This means that you have a single context switch—but each statement still executes separately in the SQL engine.
+    - ROLLBACK behavior with FORALL
+    - Continuing past exceptions with SAVE EXCEPTIONS: SQL%BULK_EXCEPTIONS (indx).ERROR_INDEX); SQL%BULK_EXCEPTIONS (indx).ERROR_CODE; SQL%BULK_EXCEPTIONS.COUNT
+    - Oracle Database 10g, PL/SQL offers the INDICES OF and VALUES OF clauses, both of which allow you to specify the portion of the binding array to be processed by FORALL
+
+
+- Adavced Topics
+  - Security
+    - Encryption, Transparent Data Encryption (TDE) from 10g R2, Transparent Table Encryption (TTE) from 11g
+      - Algorithm & Key, Data Encryption Standard (DES), Trple DES, Adavanced Encryption Standard (AES)
+      - Padding & Chaining methods
+      - DBMS_CRYPTO.ENCRYPT(src RAW [should be in character set AL32UTF8], key RAW, typ ALGO+PAD+CHAIN)
+      - Encrypt LOBs using an overloaded ENCRYPT method which used destination BLOB variable as first parameter
+      - Use Secure Files in 11g instead of traditional LOBs like CLOB, BLOB
+      - DBMS_CRYPTO.DECRYPT(src RAW [should be in character set AL32UTF8], key RAW, typ ALGO+PAD+CHAIN)
+      - DBMS_CRYPTO.RANDOMBYTES(length of key to be generated) is used to generate random key
+      - Performing Key Mgmt: A single for a database, A single key for each row, A combined Approach
+      - Cryptographic Hashing (to generate hash values so that original value will not be modified)
+        - Message Digest (MD5) and Secure Hash Algorith (SHA-1)
+        - DMBS_CRYPTO.HASH(src RAW, hastype)
+      - Message Authentication Code (MAC) is hashing with a key
+        - DBMS_CRYPTO.MAC(src RAW, key RAW, algotype)
+      - Transparent Data Encryption (TDE)
+        - Automatic key management by oracle, local is stored in data dictionary and master key is stroed in wallet (it must be opened by DBA on start up)
+        - ALTER MODIFY accounts MODIFY (ssn ENCRYPT USING 'AES256');
+        - Limitations: can't have encrypted column as foreign key, can create only b-tree indexes, can be accessed by any user
+      - Transparrny Tablespace Encryption (TTE)
+        - All objects or data stroed in tablespace is encrypted
+        - While retrieving data into SGA data will be decrypted so allows range scan and decryption only once, thus improve performance
+    - Row Level Security (RLS) or Virtual Private Database (VPD) or Fine Grained Access Control (FGAC)
+      - Policy
+        - A declarative command that determines when and how to apply the policy: during queries, insertions, deletions, updates, or combinations of these operations.
+        - DBMS_RLS.ADD_POLICY (obj_schema, 
+	                       obj_name, 
+			       policy_name, 
+			       function_schema, 
+			       policy_function, 
+			       statement_types,  [insert, update, delete, select, index(10g)]
+			       update_check, [to not update unneccessary conditions]
+			       sec_relevant_cols, [in 10g, applied only this list of cols are referenced in the query]
+			       sec_relevant_cols_opt [in 10g, to display all rows irrespective of policy by removing selected columns]);
+	- DBMS_RLS.DROP_POLICY (obj_schema, obj_name, policy_name);
+      - Policy function
+        - A PL/SQL function that is called whenever the conditions specified in the policy are met.
+      - Predicate
+        - A string that is generated by the policy function, and then applied to the users’ SQL statements, indicating limiting conditions.
+      - Using Dynamic Policies
+        - GRANT EXEMPT ACCESS POLICY TO hr; altogether if want not to apply any policies
+        - Changing policy function such that it retuns predicates dynamically
+        - Policy Types: to be passed to ADD_POLICY proc to decide on when to call policy function
+          - DBMS_RLS.DYNAMIC (default)
+          - DBMS_RLS.CONTEXT_SENSTIVE : Re-executes when the application context changes
+          - DBMS_RLS.SHARED_CONTEXT_SENSITIVE
+          - DBMS_RLS.SHARED_STATIC : Same static policy will be share across different objects (use same policy name)
+          - DBMS_RLS.STATIC
+    - Application Contexts
+      - CREATE CONTEXT dept_ctx USING set_dept_ctx [stored procedure];
+      - DBMS_SESSION.set_context (ctx_name, attr_name, value);
+      - SYS_CONTEXT (ctx_name, attr_name);
+      - Predefined application context USERENV, which has a set of attributes such as TERMINAL, IP_ADDRESS, OS_USER
+      - For security reasons we can not assign values for context by directly call the DBMS_SESSION.set_context proc. It should be done only through trusted program.
+      - Contexts as predicates in RLS
+      - Contexts are like global package variables; once set, they retain their values and can be accessed for the duration of the session. Each session, furthermore, can set the variable differently. Contexts reside in the PGA
+      - Identifying non DB users using contexts
+    - Fine Grained Auditing (FGA)
+      - DBMS_FGA.ADD_POLICY(obj_name, schema_name, policy_name, audit_col, audit_condition, stmt_types, audit_col_opt [ALL_COLUMNS or ANY_COLUMNS], handler_schema, handler_proc [should have only 3 params TAB_OWNER, TAB_NAME, POLICY_NAME])
+      - Like RLS, FGA policies also not owned by any user. A user who has execute privillege can create and drop the policies
+      - FGA can record SELECT accesses to a table (in Oracle9i Database) or all types of DML access (in Oracle Database 10g and later) into an audit table named FGA_LOG$ in the SYS schema.
+      - You can limit the generation of audit trail information so that the trail is produced only if certain columns are selected or certain conditions are met.
+      - For FGA to work correctly, the cost based optimizer must be used; otherwise, more false positives will occur.
+      - The recording of the trail is done through an autonomous transaction. Thus, if the DML fails, the trail will still exist, and that may also lead to false positives.
+      - The audit trails show the exact statement issued by the user, the value of the bind variables (if any), the System Change Number at the time of the query, and various attributes of the session, such as the database username, the operating system username, the timestamp, and much more.
+      - In addition to writing an entry into the audit trails, FGA can also automatically execute a procedure, known as handler module
+      - Psuedo-columns can be used as part of conditions
+      - DBA_FGA_AUDIT_TRAIL view
+      - Using Bind Variables
+
+- Advanced Topics
+  - PL/SQL Architecture
+    - PL/SQL Virtual Machine, byte code to machine code conversion
+    - Default packages of PL/SQL are STANDARD and DBMS_STANDARD, which includes in every programming unit
+    - The STANDARD package contains the definitions of the supported datatypes in PL/SQL, the predefined exceptions, and the built-in functions, such as TO_CHAR, SYSDATE, and USER. The DBMS_STANDARD package contains transaction-related elements, such as COMMIT, ROLLBACK, and the trigger event functions INSERTING, DELETING, and UPDATING.
+    - Execution Authority Models
+      - The Definer Right Model
+        - Have better control to access underlying structures
+	- Application performance improves
+	- You don't have to worry about manipulation wrong table
+      - Invoker Right Model
+        - With this approach, all external references in the SQL statements in a PL/SQL program unit are resolved according to the privileges of the invoking schema, not those of the owning or defining schema
+        - AUTHID CURRENT_USER
+      - Combining rights models
+    - Conditional Compilation
+      - Selection Directives ($IF)
+      - Inquiry Directives ($$identifier)
+      - Error Directive ($ERROR)
+      - DBMS_DB_VERSION, DBMS_PREPROCESSOR
+    - PL/SQL Database Instance Memory
+      - PGA, UGA & CGA
+      - Dedicated Server & Shared Server
+      - Cursor, Memory and More
+        - Some times tuning involves reducing the no of cursors as it involves assigning memory in the server
+	- Note: Although this section is devoted to memory, keep in mind that memory is only one aspect of tuning the database; you may actually improve overall performance by increasing the number of cursors to avoid soft parses.
+    - Tips to reducing memory use
+      - Statement Sharing
+        - Rule #1, regarding bind variables
+	  - Bind variables allow an application to scale, help prevent code injection, and allow SQL statement sharing
+	- Rule #2, matching letter case and formatting
+	  - Centralize your SQL and PL/SQL code in stored programs. Anonymous blocks should be as short as possible, generally consisting of a single call to a stored program.
+	  - To maximize the sharing of SQL statements, put SQL into programs. Then call these programs rather than write the SQL you need in each block.
+	- Rule #3 says that database object references (to tables, procedures, etc.) must resolve to the same underlying object
+	  - Avoid proliferating copies of tables and programs in different accounts unless you have a good reason
+	  - Note: In high concurrency environments, this can lead to latch contention
+      - Packaging to improve memory use and performance
+      - Large Collection in PL/SQL
+        - On demand garbage collection procedure is DBMS_SESSION.FREE_UNUSED_USER_MEMORY;
+	- If you want to clear out the memory used by packaged collections but don’t want to terminate the session, use one of these built-ins: 
+	  - DBMS_SESSION.RESET_PACKAGE
+	  - DBMS_SESSION.MODIFY_PACKAGE_STATE (action_flag IN PLS_INTEGER)
+      - BULK COLLECT...LIMIT operations
+        - Bulk binds are a great way to process data efficiently, but you should take care to limit your memory consumption and not let your collections grow too large
+      - What to Do if You Run Out of Memory
+        - 1.Modify code to ensure that the maximum number of SQL statements get shared.
+        - 2.Reduce the size or number of in-memory collections.
+        - 3.Reduce the amount of application code in memory.
+        - 4.Tune the database-wide settings and/or buy more server memory
+
+- Advanced Topics
+  - Object Oriented Aspects of PL/SQL
+
+
+- Do Not Use
+  - Row-by-Row Processing
+  - Nested Row-by-Row Processing
+  - Excessive Acces Dual: Directly do Arithemetic Operations, Can use squences directlly in PL/SQL statements, Make use of DML RETURNING .. INTO .. clause to get latest values
+  - Excessive function calls: Make use of RESULT_CACHE, DETERMINISTIC, function based indexes or Virtual Columns (from 11g, can created partition on virtual columns)
+  - Database Link Calls in loop
+  - Excessive Use of Triggers (context-switches): use check constraints rather than a trigger to check the list of valid values for a column, avoid using multiple triggers for the same trigger action
+  - Excessive Commits
+  - Excessive Parsing: Do not use more dynamic sqls

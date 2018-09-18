@@ -1,0 +1,402 @@
+- Oracle Server Architecture
+  - An Oracle database is a set of files on disk. It exists until these files are deleted. There are no practical limits to the size and number of these files, and therefore no practical limits to the size of a database. 
+  - Access to the database is through the Oracle instance. The instance is a set of processes and memory structures: it exists on the CPU(s) and in the memory of the server node, and its existence is temporary.
+  - An Oracle instance with an Oracle database makes up an Oracle server.
+  - The network communications protocol used between the user process and the server process is Oracle’s proprietary protocol, Oracle Net.
+  - A session is a user process in communication with a server process.
+  - Oracle provides the OCI (Oracle Call Interface) libraries that let code written in these languages connect to an Oracle database and invoke SQL commands.
+  - The processes that make up the instance are known as background processes because they are present and running at all times while the instance is active.
+  - The memory structures, which are implemented in shared memory segments provided by the operating system, are known as the system global area, or SGA. This is allocated at instance startup and released on shutdown.
+  - The server processes are sometimes referred to as foreground processes, in contrast with the background processes that make up the instance. 
+  - Associated with each server process is an area of nonsharable memory, called the program global area, or PGA. This is private to the session, unlike the system global area, which is available to all the foreground and background processes. Note that background processes also have a PGA. 
+  - The physical structures that make up an Oracle database are the datafiles (temp files for temporary), the redo log, and the controlfile. 
+  - Oracle implements the capture of changes through the redo log. The redo log is a sequential record of all change vectors applied to data.
+  - The controlfile stores the details of the physical structures of the database and is the starting point for the link to the logical structures
+  - The SGA contains three mandatory data structures (1,2&3) and three optional data sructures (4,5&6):
+    - The database buffer cache
+      - The database buffer cache is Oracle’s work area for executing SQL
+      - The data blocks containing the data of interest are first copied into the database buffer cache. Changes are applied to these copies of the data blocks in the database buffer cache.
+      - the relevant rows are then transferred into the session’s PGA for further processing.
+      - A buffer storing a block whose image in the cache is not the same as the image on disk is often referred to as a dirty buffer. A buffer will be clean when a block is first copied into it
+      - Note that there is no correlation between the frequency of updates to a buffer (or the number of COMMITs) and when it gets written back to the datafiles. The write to the datafiles is done by the database writer background process
+      - The size of the database buffer cache is critical for performance. The cache should be sized adequately for caching all the frequently accessed blocks (whether clean or dirty), but not so large that it caches blocks that are rarely needed.
+      - Buffer States: Unused, Clean, Dirty
+      - Buffer Modes: Current Mode, Consistent Mode (used redo data incase of dirty buffer)
+    - The log buffer
+      - The log buffer is a small, short-term staging area for change vectors before they are written to the redo log on disk.
+      - The writes are done by the log writer background process, the LGWR.
+    - The shared pool
+      - Library Cache
+        - The library cache is a memory area for storing recently executed code, in its parsed form. 
+	- Parsing is the conversion of code written by programmers into something executable, and it is a process which Oracle does on demand. By caching parsed code in the shared pool, it can be reused greatly improving performance.
+      - Data Dictionary Cache
+        - it stores recently used object definitions: descriptions of tables, indexes, users, and other metadata definitions. 
+	- Keeping such definitions in memory in the SGA, where they are immediately accessible to all sessions, rather than each session having to read them repeatedly from the data dictionary on disk, enhances parsing performance.
+      - PL/SQL Area
+        - When a stored PL/SQL object is invoked by a session, it must be read from the data dictionary. To prevent repeated reading, the objects are then cached in the PL/SQL area of the shared pool.
+	- Anonymous PL/SQL cannot be cached and reused but must be compiled dynamically. It will therefore always perform worse than stored PL/SQL.
+      - SQL Query & PL/SQL Function Result Cache
+    - A large pool
+    - A Java pool
+    - A Streams pool
+  - The instance background processes are the processes that are launched when the instance is started and run until it is terminated.
+  - A database instance is a set of memory structures that manage database files.
+  - Temp files are always set to NOLOGGING mode, which means that they never have redo generated for them. Media recovery does not recognize temp files.
+  - There are five background processes that have a long history with Oracle; these are the first five described in the sections that follow: 
+    - System Monitor (SMON)
+      - SMON initially has the task of mounting and opening a database.
+      - Once the database is opened and in use, SMON is responsible for various housekeeping tasks, such as coalescing free space in datafiles
+    - Process Monitor (PMON)
+      - A user session is a user process that is connected to a server process. The server process is launched when the session is created and destroyed when the session ends.
+      - PMON monitors all the server processes and detects any problems with the sessions. 
+      - If a session has terminated abnormally, PMON will destroy the server process, return its PGA memory to the operating system’s free memory pool, and roll back any incomplete transaction that may have been in progress.
+    - Database Writer (DBWn)
+      - It is the database writer that subsequently writes the buffers to disk. It is possible for an instance to have several database writers (up to a maximum of twenty), which will be called DBW0, DBW1, and so on
+      - DBWn writes according to a very lazy algorithm: as little as possible, as rarely as possible. There are four circumstances that will cause DBWn to write: no free buffers, too many dirty buffers, a three-second timeout, and when there is a checkpoint.
+    - Log Writer (LGWR)
+      - LGWR writes the contents of the log buffer to the online log files on disk. A write of the log buffer to the online redo log files is often referred to as flushing the log buffer.
+    - Checkpoint Process (CKPT)
+  - The Oracle database provides complete abstraction of logical storage from physical.
+  - Physical Data Structures: The required files are the controlfile, the online redo log files, and the datafiles.
+  - Logical Database Structures: Tablespaces -> Segments -> Extents -> Data Blocks
+  - Data blocks are the smallest units of storage that Oracle Database can use or allocate, for example, 2 KB. A data block (DB_BLOCK_SIZE) is the minimum unit of database I/O.
+  - An extent is a set of logically contiguous data blocks allocated for storing a specific type of information, for example the 24 KB extent has 12 data blocks, while the 72 KB extent has 36 data blocks.
+  - A segment is a set of extents allocated for a specific database object, such as a table. For example, the data for the employees table is stored in its own data segment, whereas each index for employees is stored in its own index segment. Every database object that consumes storage consists of a single segment.
+  - Only one crucial SQL parameter controls space allocation: PCTFREE. This parameter specifies the percentage of space to be reserved in a block for future updates
+  - While the percentage of free space cannot be less than PCTFREE, the amount of free space can be greater. For example, a PCTFREE setting of 20% prevents the total amount of free space from dropping to 5% of the block, but permits 50% of the block to be free space.
+  - Row Chaiing & Row Migration
+  - To manage space, Oracle Database tracks the state of blocks in the segment. The high water mark (HWM) is the point in a segment beyond which data blocks are unformatted and have never been used.
+  - Table Spaces: SYSTEM, SYSAUX, UNDO, User Tablespaces and TEMP
+  - Of course, when a transaction commits, the redo log buffer must be flushed to disk, because otherwise the recovery for that commit could not be guaranteed. The LGWR (Log Writer) process does that flushing.
+  - Instance recovery ensures that the database is in a consistent state after an instance failure. The files of a database can be left in an inconsistent state because of how Oracle Database manages database changes.
+  - The basic memory structures associated with Oracle Database include:
+    - System global area (SGA)
+      - The SGA is a group of shared memory structures, known as SGA components, that contain data and control information for one Oracle Database instance. The SGA is shared by all server and background processes. Examples of data stored in the SGA include cached data blocks and shared SQL areas.
+    - Program global area (PGA)
+      - A PGA is a nonshared memory region that contains data and control information exclusively for use by an Oracle process. The PGA is created by Oracle Database when an Oracle process is started.
+      - One PGA exists for each server process and background process. The collection of individual PGAs is the total instance PGA, or instance PGA. Database initialization parameters set the size of the instance PGA, not individual PGAs.
+      - SQL Work Areas: Sort Area, Hash Area, Bitmap Merge Area, the run-time area tracks the number of rows retrieved so far in a full table scan.
+      - Size has performance impact, especially for complex long running queries
+    - User Global Area (UGA)
+      - The UGA is memory associated with a user session.
+      - The UGA is session memory, which is memory allocated for session variables, such as logon information, and other information required by a database session. Essentially, the UGA stores the session state.
+    - Software code areas
+      - Software code areas are portions of memory used to store code that is being run or can be run. Oracle Database code is stored in a software area that is typically at a different location from user programs—a more exclusive or protected location.
+
+
+- Nulls: Nothing to Worry About
+  - Nulls in Scalar Expressions: As usual
+  - Nulls in Boolean Expressions (IS NULL, IS NOT NULL caluses for null check)
+    - FALSE AND UNKNOWN -> FALSE
+    - TRUE OR UNKNOWN -> TRUE
+    - Remaining as usual
+  - Nulls in CHECK constraints
+    - Evaluating a WHERE clause, UNKNOWN leads to the same end result as FALSE —the row is rejected
+    - In a CHECK constraint, UNKNOWN leads to the same end result as TRUE —the row is accepted. This is because constraints raise violations only if their Boolean expressions evaluate to FALSE.
+    - Here is a good way to think about all this. The action of WHERE and HAVING clauses is to pass those rows for which expressions evaluate to TRUE . The action of a CHECK constraint is to reject rows for which expressions are FALSE . In all cases, no action, neither pass nor reject, is taken in the UNKNOWN case.
+  - Nulls and Joins: As usual
+  - Nulls in Summarized Data: Nulls are ignored
+  - "NOT IN" versus "NOT EXISTS"
+    - When writing NOT IN conditions, always be sure you take the time to think about the X NOT IN (...,NULL,...) case.
+  - Watch for the Empty Set!
+    - Apparently, COUNT returns zero whereas AVG, SUM, MAX , and MIN return null.
+    - SELECT E1.ENAME FROM EMP_M E1 WHERE E1.SAL > (SELECT MAX(E2.SAL) FROM EMP_M E2 WHERE E2.DEPTNO = 10 AND E2.JOB = 'SALESREP'); No rows selected.
+    - SELECT E1.ENAME FROM EMP_M E1 WHERE E1.SAL > ALL (SELECT E2.SAL FROM EMP_M E2  WHERE E2.DEPTNO = 10 AND E2.JOB = 'SALESREP'); 10 rows selected.
+    - the MAX function of the first query returns a null and the WHERE clause of the main query results in the value UNKNOWN for all employees. On the other hand, the second query returns all employees—because any salary is greater than all salaries in an empty set.
+    - We must hasten to say that this is not a bug but fully expected behavior in accordance with the SQL standard. The lesson to take away here is to always, always ask yourself the question: "What if the aggregate function is applied against an empty set?" 
+
+- Constraints
+  - Oracle Database does not support constraints on columns or attributes whose type is a user-defined object, nested table, VARRAY, REF, or LOB, with two exceptions:
+    - NOT NULL constraints are supported for a column or attribute whose type is user-defined object, VARRAY, REF, or LOB.
+    - NOT NULL, foreign key, and REF constraints are supported on a column of type REF.
+  - You cannot specify NULL or NOT NULL in a view constraint.
+  - If you want a unique index in place, it is suggested you explicitly create it using CREATE UNIQUE INDEX.  A primary key or unique constraint is not guaranteed to create a new index, nor is the index they create guaranteed to be a unique index.  Therefore, if you desire a unique index to be created for query performance issues, you should explicitly create one.
+  - Unique constraint on timestamp with time zone: 11g - virtual column + unique constraint, 10g and before - unique function based index.
+  - If you drop a unique or primary key constraint the index that supports it may be dropped at the same time – but this doesn’t always happen.
+
+- Can use column position in ORDER BY
+- If any NULL in NOT IN clause, It will return no rows (even for matching rows)
+
+- Some examples of Oracle specific syntax that are also available through their ANSIÂ SQLÂ counterpart – that in most instances has even more functionality – and that is almost always the preferred approach going forward:
+  - outer join syntax: in addition to Oracle’s (+) notation, 9iR2 introduced the left outer join, right outer join and full outer join (like (+) on both ends of the join condition, something that Oracle does not support)
+  - the Decode function that with 9iR2 can (and should) be replace by the CASE expression
+  - the to_char function that in many instances can be replace by extract {year|month|day|HOUR | MINUTE | SECOND} from date-value
+  - the ltrim and rtrim functions that can be replaced by the trim function with leading and trailing settings
+
+- Subqueries - Scalar, correlated, nested
+- Hierarchial Queries
+  - Clause: [ START WITH condition ] CONNECT BY [ NOCYCLE ] condition
+  - Pseudo Columns: LEVEL, CONNECT_BY_ISCYCLE (10gR1), CONNECT_BY_ISLEAF (10gR1)
+  - Unary Operators: PRIOR, CONNECT_BY_ROOT (10gR1) (When you qualify a column with this operator, Oracle returns the column value using data from the root row)
+  - Others: ORDER SIBLINGS BY, SYS_CONNET_BY_PATH()
+  - In a hierarchical query, do not specify either ORDER BY or GROUP BY, as they will destroy the hierarchical order of the CONNECT BY results. If you want to order rows of siblings of the same parent, then use the ORDER SIBLINGS BY clause.
+  - Oracle detects in the where clause if the condition is a join condition or a not-join condition. There is a big difference between a join and a not-join condition in that the former is performed before the building of the hierarchy and the later is performed after the hierarchy.
+  - Accessing, Deleting Sub-trees
+  - Checking Authority
+  - Listing Multiple Root Nodes
+- ROLLUP(), CUBE(), GROUPING(), GROUPING SETS(), GROUPING_ID(), GROUP_ID() Using the same column multiple times
+- Analytical Functions
+  - Ranking Function
+    - RANK(), DENSE_RANK(), ROW_NUMBER(), OVER ([PARTITION BY expr] ORDER BY expr DESC/ASC NULLS FIRST/LAST)
+    - AggrFunction() KEEP (RankingFunctionNameOnly FIRST|LAST ORDER BY expr DESC|ASC)
+  - Window Functions
+    - Cumulative Sums, Moving Averages 
+      SUM(COUNT(1)) OVER (ORDER BY COUNT(1) ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+      SUM(COUNT(1)) OVER (ORDER BY COUNT(1) ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING
+      RANGE BETWEEN .. PRECEDING AND .. FOLLOWING
+      FIRST_VALUE(), LAST_VALUE()
+      Ex: FIRST_VALUE(SUM(total_sales)) OVER (ORDER BY month ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) prev_month_sales
+      Ex: LAST_VALUE(SUM(total_sales)) OVER (ORDER BY month ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) prev_month_sales
+      lag(sum(g.cnr), 1) over(order by v.pdtcatdesc) lag_prev_cat_cnr,
+      lead(sum(g.cnr), 1) over(order by v.pdtcatdesc) lead_nxt_cat_cnr,
+  - Reporting Functions
+    - Calculations across the groups, RATIO_TO_REPORT()
+- The MODEL clause (BETWEE AND, ANY, IS ANY, CURRENTV(), FOR FROM TO INCREMENT, IS PRESENT, PRESENTV(), PRESENTNNV())
+SELECT prd_type_id, year, month, sales_amount
+  FROM all_sales
+ WHERE prd_type_id BETWEEN 1 AND 2
+   AND emp_id = 21 
+   MODEL PARTITION BY(prd_type_id) 
+   DIMENSION BY(month, year) 
+   MEASURES(amount sales_amount)
+ (sales_amount[1, 2004] = sales_amount[1, 2003], 
+  sales_amount[2, 2004] = sales_amount[2, 2003] + sales_amount[3, 2003], 
+  sales_amount[3, 2004] = ROUND(sales_amount[3, 2003]* 1.25, 2))
+ ORDER BY prd_type_id, year, month;
+
+PL/SQL
+- OPEN FOR
+- Constrained (RETURN) & Unconstrained Cursors
+- Object types, DESCRIBE, SET DESCRIBE DEPTH, Constructor, REF() - IS SCOPE, DEREF(), MAP Function
+  - Inheritence - UNDER, NOT SUITABLE AT ALL LEVELS
+  - IS OF ([ONLY]multiple types), TREAT(VALUE(object) AS type), SYS_TYPEID(VALUE(object))
+  - NOT INSTANTIABLE
+  - CONSTRUCTIOR FUNCTION ... RETURN SELF AS RESULT
+  - OVERRIDING, (SELF AS type)
+
+Cllections
+- CREATE TYPE t_varray_address AS VARRAY(3) OF VARCHAR2(50);
+- ALTER TYPE t_varray_address MODIFY LIMIT 10 CASCADE;
+- CREATE TYPE t_nested_table_address AS TABLE OF t_address;
+
+
+- v$transactions
+- place columns having nulls at last in table creation
+- 
+
+- Query plans are generated for a query -- without looking at other query plans.  they are generated independently.
+
+Performance Tips SQL
+====================
+- Figure out current execution plan, Change SQL to get choosen execution plan, Figure out which execution plan is best
+- Using the same query again and again to avoid hard parsing (more latches in library cache)
+- Try to have less no of latches in Data buffer cache, arraysize should be more
+- Always filter first
+- Careful using ROWNUM (it may stop query transformation process)
+- Put all NULL COLUMNS at last of the table description
+- Optimizer depends on statistics for execution plan
+- Increase arraysize as neccessary to reduce no of FETCH
+- Optimizer plan choices based on how data is stored
+- Full Table Scans, How data is stored, Throwaways, Multiblock Reads, High Water Marks
+  - For tables that are frequently loaded and unloaded (using DELETE instead of TRUNCATE), you may discover that response time suffers.
+- Use of index clustering factor
+- Accessing Index even when full table scan is used, it is only when ORDER BY clause contains index col in ascending order
+- in a PL/SQL procedure, use conditional constructs in the language and don’t put that logic in the SQL.
+
+ENABLING USE OF INDEXES YOU WANT
+- Indexes will have drastic effect on updates (it involvers both deletion and insertion) 
+- Indexes created on non-key columns are quite dangerous
+- Do not use function, type conversion or arthimetic expression on the side of indexed column will generally disable the use of that index
+- The expression opposite the indexed column reference can be complex. However, it must not reference columns in the same alias with the indexed column
+- Using OR condition with indexed columns
+
+PREVENTING USE OF WRONG INDEXES
+- Create the simplest possible expression on the indexed column reference
+  Ex: Appen emptry string for char type, Add 0 for numeric type, simple user nvl(col_value, col_value) - this is type independent approach
+
+ENABLING JOIN ORDER YOU WANT
+- Missing redundant join conditions in case of transitivity (if a=b and b=c, then a=c)
+
+PREVENTING JOIN ORDERS YOU DO NOT WANT
+- For each join after the first, add a logically irrelavent component referencing one of the columns added in the preceding join to the join expression
+
+FORCING EXECUTION ORDER FOR OUTER QUERIES AND SUBQUERIES
+- Same logic as above
+SELECT ... 
+FROM Orders O, Customers C, Regions R
+WHERE O.Status_Code='OP'
+  AND O.Customer_ID=C.Customer_ID
+  AND C.Customer_Type_Code='GOV'
+  AND C.Region_ID=R.Region_ID
+  AND EXISTS (SELECT NULL 
+              FROM Order_Details OD
+              WHERE O.Order_ID+0*C.Customer_ID=OD.Order_ID
+                AND OD.Shipped_Flag='Y')
+ Notice the addition of +0*C.Customer_ID to the subquery's WHERE clause. This ensures the join to Customers occurs first, before the subquery executes
+
+PROVIDING COST BASED OPTIMIZER WITH GOOD DATA (STATISTICS)
+FOOLING THE COST-BASED OPTIMIZER WITH INCORRECT DATA (FOR TESTING PURPOSE ONLY)
+
+
+- To check for existence only on a large table, user rownum. select count(*) from one_big_table where state = 'CA' and rownum = 1;
+
+PL/SQL
+======
+- Exceptional behaviour by CHAR variable when assigned with zero-length string (blank-padding the empty variable with spaces)
+- CONTINUE only in 11g
+- DBMS_UTILITY.FORMAT_ERROR_STACK, DBMS_UTILITY.FORMAT_ERROR_BACKTRACE, DBMS_UTILITY.FORMAT_CALL_STACK
+
+PL/SQL Performance Tips
+=======================
+- Short-circuit evaluation, CASE Statement (Put most likely TRUE clauses first)
+- In Dynamic SQL/PLSQL Binding is faster than Concatenation
+- DETERMINISTIC clause in function header (to return cached return value result)
+- PARALLEL_ENABLE cluase in function header (to enable parallel processing when called from within select stmt)
+- Packages improve overall performance of the application
+- As PL/SQL is a procedural language, tune algorithms
+- Write application with best practices and standards
+- Use PL/SQL specific performance features like RETURNING, FOR ALL, BULK COLLECT
+- Compile optimization level to 2
+- Data caching techniques (Storing data in PGA - Package based cache, Deterministic functions, Function result caching)
+- BULK COLLECT INTO
+- High Speed DML with FOR ALL
+- Pipelined table functions
+- Avoid extra constraints for variables like NOT NULL. Manage it properly in your code itself
+
++++++++
+10g R1
++++++++
+- BINARY_FLOAT, BINARY_DOUBLE, BINARY_FLOAT_NAN, BINARY_FLOAT_INFINITY
+  - They do not always represent fractional values precisely and may be affected by rounding differently than NUMBER types, so they should not be used where accuracy is paramount
+- ALTER TYPE has new syntax that lets you modify varrays and nested tables of scalar types
+- CREATE INDEX and ALTER INDEX have new syntax that lets you create and maintain global hash-partitioned indexes
+- CREATE MATERIALIZED VIEW and ALTER MATERIALIZED VIEW have new syntax that enhances refresh operations
+- DROP TABLE has a new PURGE clause that lets you drop the table without moving it to the recycle bin
+- FLASHBACK TABLE is a new statement that lets you revert one or more tables to an earlier system change number (SCN) or timestamp or retrieve a table that was dropped.
+- MERGE has new syntax that lets you:
+  - Specify either the update operation or the insert operation, or both
+  - Delete rows from the target table during the update operation
+- PURGE is a new SQL statement that lets you permanently remove previously dropped objects from the recycle bin and release the space that was associated with them
+- A new built-in aggregate function COLLECT (http://rwijk.blogspot.com/2010/01/cast-collect-versus-cast-multiset.html). Can be used in String Aggregation.
+- A new category of collection functions lets you manipulate nested tables and varrays. The collection functions are:
+  - CARDINALITY
+  - POWERMULTISET
+  - POWERMULTISET_BY_CARDINALITY
+  - SET
+
+
+
+
+
+
+
+
+
+MEMBER OF condition for collections
+COLLECT function
+plsql_optimize_level to 2
+enhancements to dbms_output in 10g release 2
+collection extensions in 10g
+•Collection comparisons;
+•Collection functions such as SET, CARDINALITY and POWERMULTISET;
+•Collection conditions such as MEMBER and SUBMULTISET; and
+•Collection operators such as MULTISET EXCEPT and MULTISET UNION.
+DBMS_UTILITY package called FORMAT_ERROR_BACKTRACE
+aggregating data with the returning clause
+INDICES OF, VALUES OF syntax for FOR ALL to allow use of sparse collections
+
+11g
+===
+CONTINUE keyword in PL/SQL
+PIVOT
+REGEXP_COUNT(), subexpressions in regexp functions
+DBMS_HPROF (hierarchical profiler)
+Function Result Cache
+FOR ALL for MERGE DML statement
+FOR ALL - fields within collections of records could be referenced within the DML statement
+
+
+
+- V$RESOURCE_LIMIT : To get max & current no of process, sessions, locks allowed in the system; You get TNS Error while connecting if max no of processes are reached.
+- Recursive Subquery Factoring with WITH clause; Another ways of writing hierarchical queries
+- at least prior to Oracle 11g, was that the named query must be used in the SQL statement
+with f_hr (name, id, parent_id, list_t) as  -- Column aliashing is must in WITH clause RSF
+(
+ select fname, id, parent_id, '/' || fname from family where id = 200
+ union all
+ select f.fname, f.id, f.parent_id, f_hr.list_t || '/' || f.fname  from family f join f_hr on (f.parent_id = f_hr.id)
+)
+search depth first by name set se
+select fh.* from f_hr fh;
+
+-- To produce 100 rows
+with data(p) as (
+    select 1 p from dual
+    union all
+    select p + 1 from data where p < 100
+)
+select  p
+from    data
+where   rownum <= 10
+;
+- Indexes make the calculation of MIN() MAX() functions easier as they store values in sorted order
+- Oracle Database 11gR2 – New analytical function NTH_VALUE on the same lines of FIRST_VALUE and LAST_VALUE
+- Default windowing clause for analytical functions ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+- Analytical functions can be replicated with scalar sub queries to some extent
+- Global Temporary Tables
+  - CREATE GLOBAL TEMPORARY TABLE table_name ( ... ) ON COMMIT [ PRESERVE | DELETE ] ROWS;
+  - Can create indexes on it; Stores data in temp segments in the temp tablespace
+  - If the TRUNCATE statement is issued against a temporary table, only the session specific data is truncated. There is no affect on the data of other sessions.
+  - Data in temporary tables is automatically deleted at the end of the database session, even if it ends abnormally.
+  - Views can be created against temporary tables and combinations of temporary and permanent tables.
+  - Temporary tables can have triggers associated with them.
+  - There are a number of restrictions related to temporary tables but these are version specific
+
+
+- CREATE MATERIALIZED VIEW MONTHLY_SALES_MV
+    PCTFREE 0 TABLESPACE summary
+    STORAGE (initial 64k 
+             next 64k pctincrease 0)                       <- storage parameters
+    BUILD     IMMEDIATE | DEFERRED | ON PREBUILT TABLE     <- when to populate it
+    REFRESH   FORCE | COMPLETE | FAST | NEVER REFRESH      <- how to refresh it
+    ON DEMAND | COMMIT                                     <- when to refresh it
+    ENABLE | DISABLE   QUERY REWRITE                       <- use in query rewrite or not
+  AS
+    SELECT ... FROM ...;
+
+Partitioning
+- Partitioning enhances the performance, manageability, and availability
+- Partitioning allows a table, index, or index-organized table to be subdivided into smaller pieces, where each piece of such a database object is called a partition.
+- Each row in a partitioned table is unambiguously assigned to a single partition. The partitioning key consists of one or more columns that determine the partition where each row is stored. 
+- Oracle automatically directs insert, update, and delete operations to the appropriate partition with the partitioning key.
+- Partition Pruning:  In partition pruning, the optimizer analyzes FROM and WHERE clauses in SQL statements to eliminate unneeded partitions when building the partition access list. This functionality enables Oracle Database to perform operations only on those partitions that are relevant to the SQL statement.
+- Partition-Wise Joins
+- Single-Level Partitioning
+  - Range Partitioning
+  - Hash Partitioning
+  - List Partitioning
+- Composite Partitioning
+  - Composite Range-Range Partitioning
+  - Composite Range-Hash Partitioning
+  - Composite Range-List Partitioning
+  - Composite List-Range Partitioning
+  - Composite List-Hash Partitioning
+  - Composite List-List Partitioning
+- Just like partitioned tables, partitioned indexes improve manageability, availability, performance, and scalability. They can either be partitioned independently (global indexes) or automatically linked to a table's partitioning method (local indexes)
+- In general, you should use global indexes for OLTP applications and local indexes for data warehousing or decision support systems (DSS) applications. Also, whenever possible, try to use local indexes because they are easier to manage.
+
+Oracle SQL & PL/SQL Optimization for Developers Documentation Release 2.0 by Ian Hellström
+===========================================================================================
+- People coming from imperative languages often think in terms of consecutive instructions: relational databases operate on sets not single entities. How the SQL optimizer decides to execute the query may not coincide with what you think it will (or ought to) do.
+- COALESCE(...) is the ANSI SQL function that Oracle has implemented but most Oracle SQL developers use NVL(...) instead;
+- if you reuse a subquery multiple times in a larger query, don’t copy-paste it. Instead use a subquery factor or common table expression (i.e. WITH clause). Oracle sometimes caches a subquery that appears repeatedly in your query, but there is no guarantee.
+- when you add NOT NULL constraints to columns that can have missing data (NULL), you force users to enter rubbish.
+- Prior to 11g you may have needed to convert NULL to ’N/A’ or something similar to allow indexing on missing values, but that is not necessary any longer. CREATE INDEX emp_dob ON employees (date_of_birth, '1');
+- you have to respect data types
+- the time Oracle needs to parse a statement is almost negligible, but when many users issue functionally and syntactically identical yet symbolically distinct statements, the small amounts of time can quickly add up.
+- The order in which clauses are logically processed by Oracle is as follows: FROM -> CONNECT BY -> WHERE -> GROUP BY -> HAVING -> SELECT -> ORDER BY.
+- The optimizer is also known as the cost-based optimizer (CBO), and it consists of the query transformer, the estimator, and the plan generator:
+  - The query transformer “decides whether to rewrite a user query to generate a better query plan, merges views, and performs subquery unnesting”.
+  - The estimator “uses statistics [from the data dictionary] to estimate the selectivity, cardinality, and cost of execution plans. The main goal of the estimator is to estimate the overall cost of an execution plan”.
+  - The plan generator “tries out different possible plans for a given query so that the query optimizer can choose the plan with the lowest cost. It explores different plans for a query block by trying out different access paths, join methods, and join orders”. The optimizer also evaluates expressions, and it can convert correlated subqueries into equivalent join statements or vice versa.

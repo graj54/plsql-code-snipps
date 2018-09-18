@@ -1,0 +1,129 @@
+- joins vs subquery , Exists clause: The optimizer knows what to do - use the proper construct based on the question being asked.  subqueries and joins are NOT interchangeable in general.
+
+Indexes
+ - The degree to which indexes help performance depends partly on the selectivity of the data and the way in which the data is distributed among the table’s blocks
+ - When doing a full table scan, Oracle uses a multiblock read, enabling it to scan a table quickly. Index-based reads are single-block reads, so your goal when using an index should be to reduce the number of single blocks needed to resolve the query.
+ - Invisible Indexes (Hint: USE_INVISIBLE_INDEXES)
+ - Concatenated or Composite index
+   - The leading column of the index should be the one most likely to be used in WHERE clauses and also the most selective column of the set
+   - Prior to the introduction of skip-scan functionality, queries could only use the index if the leading column of the index was in the WHERE clause.
+   - Column order Does Matter
+ - The two most common types of index scans are unique scans (CREATE UNIQUE INDEX) and range scans.
+ - Histograms record the distribution of data when you analyze a table or index. With this information in hand, the CBO can decide to use an index for conditions it knows will return a small number of rows and bypass the index when the condition will return many rows based on the limiting condition.
+ - The use of histograms is not limited to indexes. Any column of a table can have a histogram built on it.
+ - Oracle’s histograms are height-balanced as opposed to width-balanced. Consequently, all of the buckets in the histogram contain the same number of rows.
+ - During a fast full scan of an index, Oracle reads all of the leaf blocks in a b-tree index. The index is being read sequentially, so multiple blocks can be read at once.
+ - The fast full scan can be used if all of the columns in the query for the table are in the index with the leading edge of the index not part of the WHERE condition
+ - If the indexes are relatively small in comparison to the overall size of the table, the fast full scan may provide the performance burst necessary for the application. With concatenated indexes that contain most of the columns of a table, the index may be larger than the actual table and the fast full scan could cause performance degradation.
+ - For large tables with concatenated indexes, the index skip-scan feature can provide quick access even when the leading column of the index is not used in a limiting condition.
+ - Types of Indexes
+   - B-tree
+     - B-tree indexes can have up to 32 columns
+     - A leaf block contains the index values, the ROWID, and pointers to the previous and next leaf blocks.
+     - Oracle does not index rows that contain NULL values in the indexed column. If the index is a concatenation of multiple columns and one of the columns contains a NULL value, the row will be in the index and the column containing the NULL value will be left empty
+   - Bitmap
+     - Bitmap indexes are ideal for decision support systems (DSS) and data warehouses. They should not be used for tables accessed via transaction-processing applications. 
+     - Bitmap indexes provide fast access to very large tables using low to medium cardinality (number of distinct values) columns. Although bitmap indexes can have up to 30 columns, they are generally used for a small number of columns. Ex: GENDER column
+     - Oracle has the ability to merge the result sets from each of the bitmap indexes to eliminate the unwanted data quickly.
+     - create bitmap index index_name on table_name (column_list);
+     - Bitmap indexes usually outperform b-trees when loading tables (INSERT operations) in batch (single-user) operations when the bulk of the entries do not add new values to the bitmap. You should not use bitmap indexes when multiple sessions will be concurrently inserting rows into the table, as occurs in most transaction-processing applications.
+     - When updating tables and their indexes, Oracle has the ability to lock individual rows. Bitmap indexes are stored as compressed indexed values, which can contain a range of ROWIDs. Therefore, Oracle has to lock the entire range of the ROWIDs for a given value. This type of locking has the potential to cause deadlock situations with certain types of DML statements. SELECT statements are not affected by this locking problem.
+     - Bitmap indexes are not considered by the rule-based optimizer.
+     - Performing an ALTER TABLE statement and modifying a column that has a bitmap index built on it invalidates the index.
+     - Bitmap indexes do not contain any of the data from the column and cannot be used for any type of integrity checking.
+     - Bitmap indexes cannot be declared as unique.
+     - Bitmap indexes have a maximum length of 30 columns.
+   - Hash
+     - Using hash indexes requires the use of hash clusters.
+     - Hash indexes are most useful when the limiting condition specifies an exact value rather than a range of values.
+   - Index-organized table
+     - An index-organized table alters the storage structure of a table to that of a b-tree index, sorted on the table’s primary key. This unique type of table is treated like any other table—all DML and DDL statements are allowed. ROWIDs are not associated with the rows in the table because of the structure of the table.
+     - UPDATE and DELETE statements based on the primary key values should perform better because the rows are physically ordered. The amount of storage required is reduced because values of the key columns are not duplicated in the table and then again in an index.
+     - If you do not frequently query the data by the primary key column, then you will need to create secondary indexes on other columns in the index-organized table. 
+     - Applications that do not frequently query tables by their primary keys do not realize the full benefits of using index-organized tables. 
+     - Consider using index-organized tables for tables that are always accessed using exact matches or range scans on the primary key.
+   - Reverse key
+     - When sequential data is loaded, the index may encounter I/O-related bottlenecks. During the data loads, one part of the index, and one part of the disk, may be used much more heavily than any other part. To alleviate this problem, you should store your index tablespaces on disk architectures that permit the files to be physically striped across multiple disks.
+     - If you have a limited number of disks and large concurrent sequential loads to perform, reverse key indexes may be a viable solution.
+     - You cannot use reverse key indexes with bitmap indexes or index-organized tables
+   - Function-based
+     - For function-based indexes to be used by the optimizer, you must set the QUERY_REWRITE_ENABLED initialization parameter to TRUE.
+     - create index index_name on emp (UPPER(job));
+     - Be sure to consider the following questions when creating them:
+     - Can you restrict the functions that will be used on the column? If so, can you restrict all functions from being performed on the column?
+     - Do you have adequate storage space for the additional indexes?
+     - How will the increased number of indexes per column impact the performance of DML commands against the table?
+   - Partitioned (local (pre-fixed and non pre-fixed) and global (pre-fixed and non pre-fixed))
+     - A partitioned index is simply an index broken into multiple pieces. By breaking an index into multiple physical pieces, you are accessing much smaller pieces (faster), and you may separate the pieces onto different disk drives (reducing I/O contention).
+     - Both b-tree and bitmap indexes can be partitioned. Hash indexes cannot be partitioned.
+     - The cost-based optimizer must be used. Partitioning adds many possibilities to help improve performance and increase maintainability.
+     - There are two types of partitioned indexes: local and global. Each type has two subsets, prefixed and non-prefixed. 
+     - A table can have any number or combination of the different types of indexes built on its columns. If bitmap indexes are used, they must be local indexes. 
+     - The main reason to partition the indexes is to reduce the size of the index that needs to be read and to enable placing the partitions in separate tablespaces to improve reliability and availability.
+     - Oracle also supports parallel query and parallel DML when using partitioned tables and indexes, adding the extra benefit of multiple processes helping to process the statement faster.
+   - Bitmap join indexes
+     - A bitmap join index is a bitmap index based on the join of two tables. Bitmap join indexes are used in data warehousing environments to improve the performance of queries that join dimension tables to fact tables
+     - The use of bitmap join indexes is restricted; you can only index the columns in the dimension tables. The columns used for the join must be primary key or unique constraints in the dimension tables, and if it is a composite primary key, you must use each of the columns in your join. 
+     - You cannot create a bitmap join index on an index-organized table, and the restrictions that apply to regular bitmap indexes also apply to bitmap join indexes.
+ - Use the REBUILD option of the ALTER INDEX statement for quickly rebuilding an index using the existing index instead of the table. You must have enough space to store both indexes during this operation.
+ - You can use the REBUILD ONLINE option to allow DML operations on the table or partition during the index rebuild. You cannot specify REBUILD ONLINE for bitmap indexes or for indexes that enforce referential integrity constraints.
+ - Rebuilding indexes online during high levels of DML activity in 11g is much faster than it was in 10g.
+ - Prior to Oracle 11g, this required an exclusive lock at the beginning and end of the rebuild. This lock could cause DML delays and a performance spike. This lock is no longer required for this operation and rebuilding indexes online is now much faster!. 
+ - Rebuilding is also faster than a DROP and CREATE index.
+ - Note that rebuilding an index is not the same as coalescing an index
+ - You can create your indexes and analyze them in a single step by using the COMPUTE STATISTICS clause of the CREATE INDEX command.
+ - Avoid hard-coding Oracle’s ROWID into specific code. The ROWID structure in the past has changed from version to version, and it will probably change again in future releases. I recommend against never hard-coding a ROWID.
+ - Each additional level in the BLEVEL adds additional performance costs during DML
+ - An index’s selectivity and clustering-factor is what helps the cost-based optimizer determine an execution path. The more selective, the fewer number of rows will be returned. Improve selectivity by creating concatenated/composite (multicolumn) indexes.
+ - If the number of deleted rows within an index approaches 20–25 percent, rebuild the index to help reduce the binary height and the amount of empty space that is being read during an I/O.
+
+
+Use The Index, Luke
+------ Anatomy of an Index
+ - The primary purpose of an index is to provide an ordered representation of the indexed data
+ - The solution to the problem is to establish a logical order that is independent of physical order in memory.
+ - A B-tree is a balanced tree—not a binary tree.
+ - Once created, the database maintains the index automatically. It applies every insert, delete and update to the index and keeps the tree in balance, thus causing maintenance overhead for write operations.
+ - The tree traversal is a very efficient operation—so efficient that I refer to it as the first power of indexing. It works almost instantly—even on a huge data set. That is primarily because of the tree balance, which allows accessing all elements with the same number of steps, and secondly because of the logarithmic growth of the tree depth.
+ - Real world indexes with millions of records have a tree depth of four or five. A tree depth of six is hardly ever seen.
+ - The first ingredient for a slow index lookup is the leaf node chain: Duplicates in the indexed values, That means that an index lookup not only needs to perform the tree traversal, it also needs to follow the leaf node chain.
+ - The second ingredient for a slow index lookup is accessing the table.
+ - An index lookup requires three steps: (1) the tree traversal; (2) following the leaf node chain; (3) fetching the table data. 
+ - The tree traversal is the only step that has an upper bound for the number of accessed blocks—the index depth. The other two steps might need to access many blocks—they cause a slow index lookup
+ - The origin of the “slow indexes” myth is the misbelief that an index lookup just traverses the tree, hence the idea that a slow index must be caused by a “broken” or “unbalanced” tree.
+ - The INDEX UNIQUE SCAN performs the tree traversal only. The Oracle database uses this operation if a unique constraint ensures that the search criteria will match no more than one entry.
+ - The INDEX RANGE SCAN performs the tree traversal and follows the leaf node chain to find all matching entries. This is the fall­back operation if multiple entries could possibly match the search criteria.
+ - The TABLE ACCESS BY INDEX ROWID operation retrieves the row from the table. This operation is (often) performed for every matched record from a preceding index scan operation.
+------ The Where Clause
+ - The database automatically creates an index for the primary key. That means there is an index on the EMPLOYEE_ID column, even though there is no create index statement.
+ - Note that the column order of a concatenated index has great impact on its usability so it must be chosen carefully.
+ - Function-based indexing is a very generic approach. Besides functions like UPPER you can also index expressions like A + B and even use user-defined functions in the index definition.
+ - It is, for example, not possible to refer to the current time in an index definition, neither directly nor indirectly. Only functions that always return the same result for the same parameters—functions that are deterministic—can be indexed.
+ - Besides being deterministic, PostgreSQL and the Oracle database require user-defined functions to be declared to be deterministic when used in an index so you have to use the keyword DETERMINISTIC (Oracle)
+ - Other examples for functions that cannot be “indexed” are random number generators and functions that depend on environment variables.
+ - If the concept of function-based indexing is new to you, you might be tempted to just index everything, but this is in fact the very last thing you should do
+ - Bind parameters—also called dynamic parameters or bind variables—are an alternative way to pass data to the database
+ - Naturally there are exceptions, for example if the affected data volume depends on the actual values
+ - Column histograms are most useful if the values are not uniformly distributed. For columns with uniform distribution, it is often sufficient to divide the number of distinct values by the number of rows in the table. This method also works when using bind parameters.
+ - The cost of the TABLE ACCESS BY INDEX ROWID operation is highly sensitive to the row count estimate
+ - Not using bind parameters is like recompiling a program every time.
+ - As the developer, you can use bind parameters deliberately to help resolve this dilemma. That is, you should always use bind parameters except for values that shall influence the execution plan.
+ - Partitioning is another example—that is, if you split tables and indexes across several storage areas. The actual values can then influence which partitions have to be scanned. The performance of LIKE queries can suffer from bind parameters as well
+ - The more complex the optimizer and the SQL query become, the more important execution plan caching becomes. The SQL Server and Oracle databases have features to automatically replace the literal values in a SQL string with bind parameters. These features are called CURSOR_SHARING (Oracle) or forced parameterization (SQL Server).
+ - The biggest performance risk of an INDEX RANGE SCAN is the leaf node traversal. It is therefore the golden rule of indexing to keep the scanned index range as small as possible
+ - Rule of thumb: index for equality first—then for ranges
+ - With this example, we can also falsify the myth that the most selective column should be at the leftmost index position.
+ - The access predicates are the start and stop conditions for an index lookup. They define the scanned index range. Index filter predicates are applied during the leaf node traversal only. They do not narrow the scanned index range.
+ - The SQL LIKE operator very often causes unexpected performance behavior because some search terms prevent efficient index usage. That means that there are search terms that can be indexed very well, but others can not. It is the position of the wild card characters that makes all the difference.
+ - LIKE filters can only use the characters before the first wild card during tree traversal. The remaining characters are just filter predicates that do not narrow the scanned index range. A single LIKE expression can therefore contain two predicate types: (1) the part before the first wild card as an access predicate; (2) the other characters as a filter predicate.
+ - The more selective the prefix before the first wild card is, the smaller the scanned index range becomes. That, in turn, makes the index lookup faster.
+ - It is one of the most common question about indexing: is it better to create one index for each column or a single index for all columns of a where clause? The answer is very simple in most cases: one index with multiple columns is better—that is, a concatenated or compound index. “Concatenated Indexes” explains them in detail.
+ - Nevertheless there are queries where a single index cannot do a perfect job, no matter how you define the index; e.g., queries with two or more independent range conditions
+ - An index can therefore only support one range condition as an access predicate. Supporting two independent range conditions requires a second axis, for example like a chessboard. 
+ - The other option is to use two separate indexes, one for each column. Then the database must scan both indexes first and then combine the results. The duplicate index lookup alone already involves more effort because the database has to traverse two index trees. Additionally, the database needs a lot of memory and CPU time to combine the intermediate results
+ - One index scan is faster than two.
+ - Databases use two methods to combine indexes. Firstly there is the index join. The second approach makes use of functionality from the data warehouse world: the so-called bitmap index. The advantage of bitmap indexes is that they can be combined rather easily. That means you get decent performance when indexing each column individually. Conversely if you know the query in advance, so that you can create a tailored multi-column B-tree index, it will still be faster than combining multiple bitmap indexes.
+ - Bitmap indexes are almost unusable for online transaction pro­cessing (OLTP).
+ - Add a column that cannot be NULL to index NULL like any value.
+ - The database has to be sure there can never be a NULL entry, otherwise the database must assume that the table has rows that are not in the index
+ - A missing NOT NULL constraint can prevent index usage in an Oracle database—especially for count(*) queries.
