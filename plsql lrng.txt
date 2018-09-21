@@ -190,6 +190,12 @@ d.m.l.
 end;
 /
 
+/* everything related to triggers:
+
+http://www2.cs.uh.edu/~ceick/6340/lab/Labs/Lab9/Triggers.htm
+
+*/
+
 ################function example
 
 create or replace function gen_mail_id(f_id number, f_name varchar2)
@@ -1049,6 +1055,39 @@ User altered.
 
 */
 
+/*so, DON'T DO THIS. dbms_output is for debugging purposes. it shouldn't be in production code, and especially not in triggers. on the other hand, if you are just debugging some code, see the above.*/
+
+pragma restrict_references example:
+
+create or replace package pkg1 is
+function get_emp_sal (p_empno integer) return number;
+pragma restrict_references(get_emp_sal, WNDS);
+END pkg1;
+
+create or replace package  body pkg1 is 
+function get_emp_sal (p_empno integer) return number
+is
+n_sal number;
+begin
+
+update emp salary = salary * 1.01 where empno = p_empno;
+
+returning salary into n_sal;
+
+commit;
+return n_sal;
+end pkg1;
+
+
+/*
+https://sqlandplsql.com/2013/02/23/pragma-restrict_references-oracle/
+
+RNDS – Read No Database State. Asserts that the function not to read or query tables
+RNDS – Read No Package State. Asserts that the function not to read or reference package variables
+WNDS – Write No Database State. Asserts that the function not modify database tables
+WNPS – Write No Package State. Asserts that the function not modify package variables
+TRUST – Asserts that the function can be trusted not to violate one or more rules. Used only when C or JAVA routines are called from PL/SQL.
+*/
 
 
 
